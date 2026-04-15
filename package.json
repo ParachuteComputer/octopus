@@ -1,0 +1,51 @@
+{
+  "name": "@openparachute/octopus",
+  "version": "0.1.0",
+  "description": "Team layer for Claude Code — spawn, observe, and coordinate tentacles (Claude Code teammates) in any repo.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "bin": {
+    "parachute-octopus": "./src/cli.ts",
+    "octopus": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun src/cli.ts",
+    "ui": "bun src/cli.ts ui",
+    "dev": "bun --hot src/cli.ts ui",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "files": [
+    "src",
+    "templates",
+    "public",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude-code",
+    "agents",
+    "octopus",
+    "team",
+    "tmux",
+    "parachute"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ParachuteComputer/octopus.git"
+  },
+  "homepage": "https://github.com/ParachuteComputer/octopus",
+  "bugs": {
+    "url": "https://github.com/ParachuteComputer/octopus/issues"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}
