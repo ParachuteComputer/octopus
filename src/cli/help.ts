@@ -10,6 +10,7 @@ commands:
   ui              start / stop / restart the web dashboard
   pod             manage multiple octopus instances
   send <text>     send keystrokes to the team-lead pane
+  sessions        list recent Claude Code sessions for resume
 
   init            bootstrap octopus in the current repo
   spawn <n> <d>   type /spawn into the team-lead pane
@@ -33,6 +34,8 @@ function helpLaunch(): void {
   --no-ui                 skip starting the web dashboard
   --ui-port <n>           dashboard port (default: 6061)
   --ui-host <addr>        dashboard bind address (default: 0.0.0.0)
+  --continue              resume the most recent Claude Code session
+  --resume <session-id>   resume a specific session (see: sessions)
 `);
 }
 
