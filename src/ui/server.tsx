@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
 import { readdir, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { buildSnapshot, loadConfig, setConfigPath, snapshotForTentacle } from "./state.ts";
 import { capturePane, isPrimarySessionPane, isValidKey, listPanes, sendKey, sendKeys } from "./tmux.ts";
 import { DashboardPage, PanePage } from "./render.tsx";
@@ -207,16 +207,19 @@ async function cloneRepo(url: string, dest: string): Promise<{ ok: true } | { ok
 app.post("/api/spawn", async (c) => {
   const body = await c.req.json().catch(() => null);
   const name = String(body?.name ?? "").trim();
-  const cwd = String(body?.cwd ?? "").trim();
+  const cwdRaw = String(body?.cwd ?? "").trim();
   const promptRaw = String(body?.prompt ?? "").trim();
   const cloneUrl = String(body?.cloneUrl ?? "").trim();
 
   if (!NAME_RX.test(name)) {
     return c.json({ error: "invalid name (lowercase letters/digits/dashes, 2-31 chars, must start with letter)" }, 400);
   }
-  if (!cwd || !cwd.startsWith("/")) {
+  if (!cwdRaw || !cwdRaw.startsWith("/")) {
     return c.json({ error: "cwd must be an absolute path" }, 400);
   }
+  // Normalize before embedding in the slash command so `/foo//bar` and `/foo/./bar`
+  // arrive at the team-lead canonicalized — matches the CLI's spawn behavior.
+  const cwd = resolvePath(cwdRaw);
 
   let cwdExists = false;
   try {

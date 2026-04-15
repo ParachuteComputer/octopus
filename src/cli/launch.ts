@@ -4,11 +4,17 @@ import { parseFlags } from "./flags.ts";
 import { tmuxHasSession, which } from "./tmux.ts";
 
 export async function runLaunch(argv: string[]): Promise<void> {
-  const { flags } = parseFlags(argv, ["team", "cwd", "session", "model"]);
+  const { flags } = parseFlags(argv, ["team", "cwd", "session", "model", "no-skip-permissions"]);
   const team = (flags.team as string) ?? process.env.OCTOPUS_TEAM ?? "octopus";
   const cwd = resolve((flags.cwd as string) ?? process.cwd());
   const session = (flags.session as string) ?? team;
   const model = (flags.model as string) ?? "";
+  // Default: pass --dangerously-skip-permissions so the team-lead can dispatch
+  // freely. Opt out via --no-skip-permissions or OCTOPUS_SKIP_PERMISSIONS=false
+  // for shared / less-trusted environments.
+  const skipPermissions =
+    !flags["no-skip-permissions"] &&
+    process.env.OCTOPUS_SKIP_PERMISSIONS !== "false";
 
   if (!which("tmux")) {
     console.error("error: tmux is not installed or not on PATH (try `brew install tmux`).");
@@ -35,9 +41,11 @@ export async function runLaunch(argv: string[]): Promise<void> {
       session,
       "-c",
       cwd,
+      "-e",
+      `OCTOPUS_TEAM=${team}`,
       "claude",
-      "--dangerously-skip-permissions",
     ];
+    if (skipPermissions) claudeArgs.push("--dangerously-skip-permissions");
     if (model) claudeArgs.push("--model", model);
     const create = Bun.spawnSync(claudeArgs, { stdout: "inherit", stderr: "inherit" });
     if (create.exitCode !== 0) {

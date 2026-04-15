@@ -11,9 +11,11 @@ Commands:
       the tentacle/reviewer agent definitions into .claude/, and ensures
       CLAUDE.md links the octopus conventions snippet.
 
-  launch [--team <name>] [--cwd <path>] [--session <name>]
+  launch [--team <name>] [--cwd <path>] [--session <name>] [--model <id>] [--no-skip-permissions]
       Start (or attach to) a tmux session running Claude Code as the team-lead.
-      Defaults: team "octopus", cwd "$PWD", session "octopus".
+      Defaults: team "octopus", cwd "$PWD", session = team name. Passes
+      --dangerously-skip-permissions to claude by default; opt out with
+      --no-skip-permissions or OCTOPUS_SKIP_PERMISSIONS=false.
 
   ui [--team <name>] [--port 6061] [--host 127.0.0.1]
       Start the web dashboard. Loopback by default; pass --host 0.0.0.0 to
