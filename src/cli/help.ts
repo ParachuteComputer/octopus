@@ -12,10 +12,19 @@ Commands:
       CLAUDE.md links the octopus conventions snippet.
 
   launch [--team <name>] [--cwd <path>] [--session <name>] [--model <id>] [--no-skip-permissions]
+         [--continue | --resume <session-id>]
       Start (or attach to) a tmux session running Claude Code as the team-lead.
       Defaults: team "octopus", cwd "$PWD", session = team name. Passes
       --dangerously-skip-permissions to claude by default; opt out with
       --no-skip-permissions or OCTOPUS_SKIP_PERMISSIONS=false.
+      Pass --continue to resume the most recent Claude Code session for the
+      cwd, or --resume <session-id> for a specific one. (Mutually exclusive;
+      ignored if a tmux session is already running for this team.)
+
+  sessions [--cwd <path>]
+      List recent Claude Code sessions for the current cwd so you can pick
+      one to resume. Reads ~/.claude/projects/<cwd-encoded>/*.jsonl and
+      prints the id, last-touched time, and approximate duration of each.
 
   ui [--team <name>] [--port 6061] [--host 127.0.0.1]
       Start the web dashboard. Loopback by default; pass --host 0.0.0.0 to

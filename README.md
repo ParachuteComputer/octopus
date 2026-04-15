@@ -81,11 +81,34 @@ Bootstrap the current repo. Writes:
 Idempotent: re-running overwrites the four template files but preserves the
 rest of `CLAUDE.md`. Default team name is `octopus`.
 
-### `octopus launch [--team <name>] [--cwd <path>] [--session <name>] [--model <id>]`
+### `octopus launch [--team <name>] [--cwd <path>] [--session <name>] [--model <id>] [--continue | --resume <session-id>]`
 
 Start (or attach to) a tmux session running Claude Code as the team-lead.
 Defaults: team `octopus`, cwd `$PWD`, session name = team name. Inside an
 existing tmux session it does `switch-client` instead of `attach`.
+
+Pass `--continue` to resume the most recent Claude Code session for the
+cwd, or `--resume <session-id>` for a specific one. Mutually exclusive;
+ignored (with a warning) if the tmux session already exists — kill it
+first (`tmux kill-session -t <name>`) to actually reload state.
+
+### `octopus sessions [--cwd <path>]`
+
+List recent Claude Code sessions for the current cwd so you can pick one
+to resume. Reads `~/.claude/projects/<cwd-encoded>/*.jsonl` (head + tail
+only — large histories stay cheap) and prints id, last-touched time, and
+approximate duration.
+
+```
+Recent Claude Code sessions in this project:
+
+  1. 2026-04-15 17:49  10 hours of context · 7300037a-06db-48fa-9640-8f681673b1a3
+  2. 2026-04-15 16:15  27 hours of context · 3226e2f9-3026-4f7e-8682-1d63bd6d7e48
+  3. 2026-04-15 15:48  12 min of context · 379db1fc-f9ba-4728-b152-483788187fd2
+
+Resume the most recent with: octopus launch --continue
+Resume a specific one with:  octopus launch --resume <session-id>
+```
 
 ### `octopus ui [--team <name>] [--port 6061] [--host 127.0.0.1] [--team-config <path>]`
 

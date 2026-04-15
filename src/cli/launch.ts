@@ -3,18 +3,63 @@ import { resolve } from "node:path";
 import { parseFlags } from "./flags.ts";
 import { tmuxHasSession, which } from "./tmux.ts";
 
+export interface LaunchArgOptions {
+  team: string;
+  cwd: string;
+  session: string;
+  model: string;
+  skipPermissions: boolean;
+  resume?: string;
+  continueSession?: boolean;
+}
+
+// Pure helper: build the argv for `tmux new-session … claude …`. Extracted so
+// tests can assert the shape of the claude invocation without spawning tmux.
+export function buildClaudeLaunchArgs(opts: LaunchArgOptions): string[] {
+  const args = [
+    "tmux",
+    "new-session",
+    "-d",
+    "-s",
+    opts.session,
+    "-c",
+    opts.cwd,
+    "-e",
+    `OCTOPUS_TEAM=${opts.team}`,
+    "claude",
+  ];
+  if (opts.skipPermissions) args.push("--dangerously-skip-permissions");
+  if (opts.model) args.push("--model", opts.model);
+  if (opts.continueSession) args.push("--continue");
+  if (opts.resume) args.push("--resume", opts.resume);
+  return args;
+}
+
 export async function runLaunch(argv: string[]): Promise<void> {
-  const { flags } = parseFlags(argv, ["team", "cwd", "session", "model", "no-skip-permissions"]);
+  const { flags } = parseFlags(argv, [
+    "team",
+    "cwd",
+    "session",
+    "model",
+    "no-skip-permissions",
+    "resume",
+    "continue",
+  ]);
   const team = (flags.team as string) ?? process.env.OCTOPUS_TEAM ?? "octopus";
   const cwd = resolve((flags.cwd as string) ?? process.cwd());
   const session = (flags.session as string) ?? team;
   const model = (flags.model as string) ?? "";
-  // Default: pass --dangerously-skip-permissions so the team-lead can dispatch
-  // freely. Opt out via --no-skip-permissions or OCTOPUS_SKIP_PERMISSIONS=false
-  // for shared / less-trusted environments.
   const skipPermissions =
     !flags["no-skip-permissions"] &&
     process.env.OCTOPUS_SKIP_PERMISSIONS !== "false";
+
+  const continueSession = flags["continue"] === true;
+  const resume = typeof flags.resume === "string" ? flags.resume : undefined;
+  if (continueSession && resume) {
+    console.error("error: --continue and --resume are mutually exclusive.");
+    console.error("Use --continue for the most recent session, --resume <id> for a specific one.");
+    process.exit(1);
+  }
 
   if (!which("tmux")) {
     console.error("error: tmux is not installed or not on PATH (try `brew install tmux`).");
@@ -31,28 +76,34 @@ export async function runLaunch(argv: string[]): Promise<void> {
   }
 
   if (tmuxHasSession(session)) {
+    if (continueSession || resume) {
+      console.warn(
+        `note: tmux session "${session}" is already running — attach flags (--continue / --resume) are ignored.`,
+      );
+      console.warn(`To start a fresh claude with resume, kill the session first: tmux kill-session -t ${session}`);
+    }
     console.log(`attaching to existing tmux session "${session}"`);
   } else {
-    const claudeArgs = [
-      "tmux",
-      "new-session",
-      "-d",
-      "-s",
-      session,
-      "-c",
+    const claudeArgs = buildClaudeLaunchArgs({
+      team,
       cwd,
-      "-e",
-      `OCTOPUS_TEAM=${team}`,
-      "claude",
-    ];
-    if (skipPermissions) claudeArgs.push("--dangerously-skip-permissions");
-    if (model) claudeArgs.push("--model", model);
+      session,
+      model,
+      skipPermissions,
+      resume,
+      continueSession,
+    });
     const create = Bun.spawnSync(claudeArgs, { stdout: "inherit", stderr: "inherit" });
     if (create.exitCode !== 0) {
       console.error("error: failed to create tmux session.");
       process.exit(create.exitCode ?? 1);
     }
-    console.log(`started octopus team "${team}" in tmux session "${session}" (cwd: ${cwd})`);
+    const resumeNote = continueSession
+      ? " (resuming most recent session)"
+      : resume
+        ? ` (resuming session ${resume.slice(0, 8)}…)`
+        : "";
+    console.log(`started octopus team "${team}" in tmux session "${session}" (cwd: ${cwd})${resumeNote}`);
   }
 
   const insideTmux = !!process.env.TMUX;
