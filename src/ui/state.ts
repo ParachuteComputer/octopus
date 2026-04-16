@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { capturePane, extractTentacleName, isPrimarySessionPane, listPanes } from "./tmux.ts";
+import { capturePane, extractTentacleName, isClaudeCodePane, isPrimarySessionPane, listPanes } from "./tmux.ts";
 
 export interface ConfigMember {
   agentId: string;
@@ -167,8 +167,18 @@ export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
   // Detect it by the teammates strip / count instead. Cache the answer for 30s
   // so a transient miss during slash-command dispatch doesn't make the
   // team-lead card vanish from the grid.
+  //
+  // Fallback: if no pane has the @main strip (session not in team mode),
+  // look for any untagged Claude Code pane — that's likely the team-lead.
   const now = Date.now();
+  const tentacleNames = new Set(captures.filter((c) => c.name).map((c) => c.name));
   let primarySessionCapture = captures.find((c) => isPrimarySessionPane(c.content));
+  if (!primarySessionCapture) {
+    // Fallback: untagged Claude Code pane (not a tentacle)
+    primarySessionCapture = captures.find(
+      (c) => !c.name && !tentacleNames.has(c.name) && isClaudeCodePane(c.content),
+    );
+  }
   if (primarySessionCapture) {
     primaryCache = { paneId: primarySessionCapture.pane.paneId, at: now };
   } else if (primaryCache && now - primaryCache.at < PRIMARY_CACHE_TTL_MS) {

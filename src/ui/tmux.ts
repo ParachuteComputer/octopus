@@ -120,3 +120,18 @@ const PRIMARY_SIGNALS: RegExp[] = [
 export function isPrimarySessionPane(paneContent: string): boolean {
   return PRIMARY_SIGNALS.some((rx) => rx.test(paneContent));
 }
+
+// Broader check: does this pane look like a Claude Code session at all?
+// Used as a fallback when the primary session isn't running in team mode
+// (no @main strip) but we still want to detect the team-lead.
+const CLAUDE_CODE_SIGNALS: RegExp[] = [
+  /^\s*❯\s*/m,                          // Claude Code prompt
+  /Running…|Cogitated|Sautéed|Pondering|Thinking|Simmering|Marinating/,
+  /bypass permissions on/,
+  /Remote Control active/,
+  /⏵⏵/,                                 // fast-mode indicator
+];
+
+export function isClaudeCodePane(paneContent: string): boolean {
+  return CLAUDE_CODE_SIGNALS.some((rx) => rx.test(paneContent));
+}

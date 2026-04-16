@@ -6,7 +6,7 @@ import { readdir, stat } from "node:fs/promises";
 import { resolve as resolvePath } from "node:path";
 import type { InstanceContext } from "./state.ts";
 import { buildSnapshot, loadConfig, setConfigPath, snapshotForTentacle } from "./state.ts";
-import { capturePane, isPrimarySessionPane, isValidKey, listPanes, sendKey, sendKeys } from "./tmux.ts";
+import { capturePane, extractTentacleName, isClaudeCodePane, isPrimarySessionPane, isValidKey, listPanes, sendKey, sendKeys } from "./tmux.ts";
 import { DashboardPage, PanePage, PodOverviewPage } from "./render.tsx";
 import { resolvePublicDir, resolveSpawnTargetRoots, resolveTeamConfigPath } from "../paths.ts";
 import { loadPod, podStatus } from "../pod.ts";
@@ -215,9 +215,15 @@ async function listDirs(root: string): Promise<string[]> {
 // tmux or the signals are momentarily absent during a slash dispatch).
 async function findTeamLeadPane(sessionFilter?: string): Promise<string | null> {
   const panes = await listPanes(sessionFilter);
+  // First pass: look for the @main strip (team mode)
   for (const p of panes) {
     const content = await capturePane(p.paneId, 40);
     if (isPrimarySessionPane(content)) return p.paneId;
+  }
+  // Fallback: untagged Claude Code pane (session not in team mode)
+  for (const p of panes) {
+    const content = await capturePane(p.paneId, 40);
+    if (!extractTentacleName(content) && isClaudeCodePane(content)) return p.paneId;
   }
   return null;
 }
