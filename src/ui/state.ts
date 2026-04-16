@@ -306,15 +306,15 @@ export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
   if (primarySessionCapture) {
     const leadWindow = primarySessionCapture.pane.window;
     const leadSession = primarySessionCapture.pane.session;
-    const armsInLeadWindow = captures.filter(
-      (c) =>
-        c.pane.paneId !== primarySessionCapture!.pane.paneId &&
-        c.pane.session === leadSession &&
-        c.pane.window === leadWindow &&
-        c.name, // only move tagged tentacle panes, not random shells
+    const panesInLeadWindow = livePanes.filter(
+      (p) =>
+        p.paneId !== primarySessionCapture!.pane.paneId &&
+        p.session === leadSession &&
+        p.window === leadWindow,
     );
-    for (const arm of armsInLeadWindow) {
-      await movePaneToBackgroundWindow(arm.pane.paneId, leadSession, arm.name ?? undefined);
+    for (const p of panesInLeadWindow) {
+      const cap = captures.find((c) => c.pane.paneId === p.paneId);
+      await movePaneToBackgroundWindow(p.paneId, leadSession, cap?.name ?? undefined);
     }
   }
 

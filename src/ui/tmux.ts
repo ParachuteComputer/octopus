@@ -102,8 +102,8 @@ export async function movePaneToBackgroundWindow(
   windowName?: string,
 ): Promise<boolean> {
   try {
-    const args = ["break-pane", "-d", "-t", paneId, "-s", session];
-    await run(args);
+    // -s = source pane to break out, -d = stay in current window (don't follow)
+    await run(["break-pane", "-d", "-s", paneId]);
     // Optionally rename the new window
     if (windowName) {
       // break-pane creates a new window at the next index — find it by pane ID
