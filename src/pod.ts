@@ -38,6 +38,15 @@ export function findInstance(name: string): OctopusInstance | undefined {
   return loadPod().octopi.find((o) => o.name === name);
 }
 
+/**
+ * Reverse lookup: find a pod instance whose scope matches the given directory.
+ * Matches exact path (after normalization). Returns undefined if no match.
+ */
+export function findInstanceByScope(dir: string): OctopusInstance | undefined {
+  const normalized = resolve(dir);
+  return loadPod().octopi.find((o) => resolve(o.scope) === normalized);
+}
+
 export function addInstance(instance: OctopusInstance): void {
   const pod = loadPod();
   const existing = pod.octopi.findIndex((o) => o.name === instance.name);

@@ -23,7 +23,7 @@ export async function runInit(argv: string[]): Promise<void> {
     throw new Error(`templates directory not found at ${templatesDir} — package install may be incomplete`);
   }
 
-  console.log(`octopus init — team "${team}" in ${targetCwd}`);
+  console.log(`parachute-octopus init — team "${team}" in ${targetCwd}`);
   for (const { src, dest } of TEMPLATE_FILES) {
     const srcPath = join(templatesDir, src);
     const destPath = join(targetCwd, dest);

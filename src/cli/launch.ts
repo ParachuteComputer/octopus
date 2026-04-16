@@ -12,7 +12,7 @@ import {
   probeOctopusUi,
   readPidFile,
 } from "../ui/pidfile.ts";
-import { findInstance } from "../pod.ts";
+import { findInstance, findInstanceByScope } from "../pod.ts";
 
 const UI_WINDOW_NAME = "octopus-ui";
 
@@ -28,19 +28,29 @@ export async function runLaunch(argv: string[]): Promise<void> {
     "ui-host",
   ]);
 
-  // Resolve from pod registry if a positional name is given:
-  // `octopus launch parachute` → looks up scope + team from pod.json
+  // Resolve from pod registry. Three paths:
+  // 1. Explicit positional name: `octopus launch parachute` → look up by name
+  // 2. No name, no flags: infer from cwd → reverse-lookup the pod registry
+  // 3. Explicit --team/--cwd flags override everything
   const podName = positional[0];
-  const instance = podName ? findInstance(podName) : undefined;
-  if (podName && !instance && !flags.team && !flags.cwd) {
+  const instanceByName = podName ? findInstance(podName) : undefined;
+  const resolvedCwd = resolve((flags.cwd as string) ?? instanceByName?.scope ?? process.cwd());
+  const instanceByCwd = !podName && !flags.team ? findInstanceByScope(resolvedCwd) : undefined;
+  const instance = instanceByName ?? instanceByCwd;
+
+  if (podName && !instanceByName && !flags.team && !flags.cwd) {
     console.error(`error: "${podName}" is not in the pod registry and no --team/--cwd given.`);
-    console.error(`  octopus pod add ${podName} --scope <dir>    register it first`);
-    console.error(`  octopus launch --team ${podName} --cwd .    or use explicit flags`);
+    console.error(`  parachute-octopus pod add ${podName} --scope <dir>    register it first`);
+    console.error(`  parachute-octopus launch --team ${podName} --cwd .    or use explicit flags`);
     process.exit(1);
   }
 
+  if (instanceByCwd) {
+    console.log(`detected pod "${instanceByCwd.name}" from cwd (${resolvedCwd})`);
+  }
+
   const team = (flags.team as string) ?? instance?.name ?? process.env.OCTOPUS_TEAM ?? "octopus";
-  const cwd = resolve((flags.cwd as string) ?? instance?.scope ?? process.cwd());
+  const cwd = resolvedCwd;
   const session = (flags.session as string) ?? team;
   const model = (flags.model as string) ?? "";
   // Default: pass --dangerously-skip-permissions so the team-lead can dispatch
@@ -144,9 +154,8 @@ async function ensureUiWindow(opts: EnsureUiOpts): Promise<void> {
     return;
   }
 
-  // 3. Build the command. Prefer the `octopus` bin if it's on PATH so the
-  //    window survives a `bun upgrade` of the dev tree; fall back to invoking
-  //    this same script via bun for source-tree development.
+  // 3. Build the command. Prefer `parachute-octopus` on PATH, fall back to
+  //    `octopus`, then to invoking this same script via bun for source-tree dev.
   const flags = [
     "--foreground",
     "--tmux-session",
@@ -156,8 +165,9 @@ async function ensureUiWindow(opts: EnsureUiOpts): Promise<void> {
   ];
   if (opts.port !== undefined) flags.push("--port", String(opts.port));
   if (opts.host !== undefined) flags.push("--host", opts.host);
-  const uiCmd = which("octopus")
-    ? ["octopus", "ui", ...flags].map(quote).join(" ")
+  const binName = which("parachute-octopus") ? "parachute-octopus" : which("octopus") ? "octopus" : null;
+  const uiCmd = binName
+    ? [binName, "ui", ...flags].map(quote).join(" ")
     : [process.execPath, process.argv[1], "ui", ...flags].map(quote).join(" ");
 
   const code = tmuxNewWindow(opts.session, UI_WINDOW_NAME, opts.cwd, uiCmd);

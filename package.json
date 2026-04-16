@@ -32,11 +32,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/ParachuteComputer/octopus.git"
+    "url": "https://github.com/ParachuteComputer/parachute-octopus.git"
   },
-  "homepage": "https://github.com/ParachuteComputer/octopus",
+  "homepage": "https://github.com/ParachuteComputer/parachute-octopus",
   "bugs": {
-    "url": "https://github.com/ParachuteComputer/octopus/issues"
+    "url": "https://github.com/ParachuteComputer/parachute-octopus/issues"
   },
   "engines": {
     "bun": ">=1.1.0"

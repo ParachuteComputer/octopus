@@ -3,7 +3,7 @@ export function runHelp(command?: string): void {
   if (command === "ui") return helpUi();
   if (command === "pod") return helpPod();
   if (command === "env") return helpEnv();
-  console.log(`octopus — team layer for Claude Code
+  console.log(`parachute-octopus — team layer for Claude Code
 
 commands:
   launch [name]   start tmux session with team-lead + web dashboard
@@ -15,17 +15,17 @@ commands:
   spawn <n> <d>   type /spawn into the team-lead pane
   help <command>  detailed help (launch, ui, pod, env)
 
-https://github.com/ParachuteComputer/octopus
+https://github.com/ParachuteComputer/parachute-octopus
 `);
 }
 
 function helpLaunch(): void {
-  console.log(`octopus launch [<name>] — start tmux + claude code as team-lead
+  console.log(`parachute-octopus launch [<name>] — start tmux + claude code as team-lead
 
-  octopus launch parachute    look up scope + team from pod registry
-  octopus launch              use --team/--cwd or defaults
+  parachute-octopus launch parachute    look up scope + team from pod registry
+  parachute-octopus launch              infer from cwd if registered, else defaults
 
-  --team <name>           team name (default: octopus)
+  --team <name>           team name (default: inferred from pod or "octopus")
   --cwd <path>            working directory (default: $PWD)
   --session <name>        tmux session name (default: team name)
   --model <id>            claude model override
@@ -37,12 +37,12 @@ function helpLaunch(): void {
 }
 
 function helpUi(): void {
-  console.log(`octopus ui — web dashboard lifecycle
+  console.log(`parachute-octopus ui — web dashboard lifecycle
 
-  octopus ui              start (daemonizes by default)
-  octopus ui stop         stop the running dashboard
-  octopus ui restart      stop + start with new flags
-  octopus ui status       show pid, url, mode
+  parachute-octopus ui              start (daemonizes by default)
+  parachute-octopus ui stop         stop the running dashboard
+  parachute-octopus ui restart      stop + start with new flags
+  parachute-octopus ui status       show pid, url, mode
 
 flags:
   --host <addr>           bind address (default: 0.0.0.0)
@@ -55,14 +55,17 @@ flags:
 }
 
 function helpPod(): void {
-  console.log(`octopus pod — manage multiple octopus instances
+  console.log(`parachute-octopus pod — manage multiple octopus instances
 
-  octopus pod                           list all octopi + running status
-  octopus pod add <name> [--scope dir]  register an octopus (default scope: cwd)
-  octopus pod remove <name>             unregister (files left untouched)
+  parachute-octopus pod                           list all octopi + running status
+  parachute-octopus pod add <name> [--scope dir]  register an octopus (default scope: cwd)
+  parachute-octopus pod remove <name>             unregister (files left untouched)
 
 Once registered, launch by name:
-  octopus launch parachute              resolves scope + team from the pod
+  parachute-octopus launch parachute              resolves scope + team from the pod
+
+Or launch from any registered scope directory — the pod is inferred:
+  cd ~/ParachuteComputer && parachute-octopus launch
 
 Pod file: ~/.config/octopus/pod.json
 UI shows tabs when the pod has 2+ octopi.
@@ -70,7 +73,7 @@ UI shows tabs when the pod has 2+ octopi.
 }
 
 function helpEnv(): void {
-  console.log(`octopus — environment variables
+  console.log(`parachute-octopus — environment variables
 
   OCTOPUS_TEAM            default team name (default: octopus)
   OCTOPUS_TEAM_CONFIG     absolute path to config.json (skips lookup)

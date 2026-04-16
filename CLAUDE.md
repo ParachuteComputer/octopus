@@ -1,4 +1,4 @@
-# octopus
+# parachute-octopus
 
 This repo IS the octopus team layer. Tentacles working in this repo are
 helping develop the harness that other repos use.
@@ -9,12 +9,12 @@ helping develop the harness that other repos use.
 src/
   cli.ts              CLI entry — dispatches to subcommands
   cli/
-    help.ts           `octopus help`
-    init.ts           `octopus init` — bootstraps a target repo
-    launch.ts         `octopus launch` — start tmux + Claude Code as team-lead
-    ui.ts             `octopus ui` — start the web dashboard
-    send.ts           `octopus send` — tmux send-keys to the team-lead
-    spawn.ts          `octopus spawn` — type /spawn into the team-lead
+    help.ts           `parachute-octopus help`
+    init.ts           `parachute-octopus init` — bootstraps a target repo
+    launch.ts         `parachute-octopus launch` — start tmux + Claude Code as team-lead
+    ui.ts             `parachute-octopus ui` — start the web dashboard
+    send.ts           `parachute-octopus send` — tmux send-keys to the team-lead
+    spawn.ts          `parachute-octopus spawn` — type /spawn into the team-lead
     flags.ts          tiny long-flag parser
     tmux.ts           thin tmux helpers for CLI subcommands
   config.ts           re-exports for team config loading
