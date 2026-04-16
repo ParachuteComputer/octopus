@@ -25,6 +25,16 @@ const colorMap = {
   slate: "#9B9590",
 };
 
+// Instance param — carried through to all pane links and API calls.
+const instanceParam = new URLSearchParams(window.location.search).get("instance");
+function paneUrl(name) {
+  const base = `/pane/${encodeURIComponent(name)}`;
+  return instanceParam ? `${base}?instance=${encodeURIComponent(instanceParam)}` : base;
+}
+function apiUrl(path) {
+  return instanceParam ? `${path}${path.includes("?") ? "&" : "?"}instance=${encodeURIComponent(instanceParam)}` : path;
+}
+
 function colorFor(name) {
   return colorMap[name] ?? colorMap.slate;
 }
@@ -92,7 +102,7 @@ function renderCard(t, compact) {
     <div><dt>joined</dt><dd>${formatJoinedAt(t.joinedAt)}</dd></div>
   </dl>
   ${tailHtml(t)}
-  <footer class="card-foot"><a class="btn btn-primary" href="/pane/${encodeURIComponent(t.name)}">open</a></footer>
+  <footer class="card-foot"><a class="btn btn-primary" href="${paneUrl(t.name)}">open</a></footer>
 </article>`;
 }
 
@@ -118,7 +128,7 @@ function renderHero(t) {
   </div>
 </div>
 <pre class="hero-tail" aria-label="recent output from ${escapeHtml(t.name)}">${tailContent}</pre>
-<a class="btn btn-primary hero-open" href="/pane/${encodeURIComponent(t.name)}">open</a>`;
+<a class="btn btn-primary hero-open" href="${paneUrl(t.name)}">open</a>`;
 }
 
 // Keep in sync with src/render.tsx OctopusGlyph.
@@ -249,7 +259,7 @@ let es;
 let retry = 0;
 
 function connect() {
-  es = new EventSource("/api/stream");
+  es = new EventSource(apiUrl("/api/stream"));
   es.addEventListener("state", (ev) => {
     retry = 0;
     if (refreshIndicator) {
@@ -279,7 +289,7 @@ connect();
 
 async function manualRefresh() {
   try {
-    const r = await fetch("/api/state", { cache: "no-store" });
+    const r = await fetch(apiUrl("/api/state"), { cache: "no-store" });
     if (!r.ok) throw new Error(String(r.status));
     applyState(await r.json());
   } catch (err) {
@@ -426,7 +436,7 @@ let targetsLoaded = false;
 async function loadSpawnTargets() {
   if (targetsLoaded || !targetList) return;
   try {
-    const r = await fetch("/api/spawn-targets");
+    const r = await fetch(apiUrl("/api/spawn-targets"));
     const { targets } = await r.json();
     targetList.innerHTML = (targets ?? [])
       .map((t) => `<option value="${escapeHtml(t)}"></option>`)
@@ -472,7 +482,7 @@ spawnForm?.addEventListener("submit", async (e) => {
   submit.disabled = true;
   if (body.cloneUrl) submit.textContent = "cloning…";
   try {
-    const res = await fetch("/api/spawn", {
+    const res = await fetch(apiUrl("/api/spawn"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -583,7 +593,7 @@ function atBottom(el) {
 function openSplit(name) {
   if (isMobile()) {
     // On mobile, fall back to navigate-away
-    window.location.href = `/pane/${encodeURIComponent(name)}`;
+    window.location.href = paneUrl(name);
     return;
   }
   if (activeSplitArm === name) {
@@ -607,7 +617,7 @@ function openSplit(name) {
   splitMeta.textContent = "";
   splitStatusDot.className = "status-dot";
   splitScrollback.textContent = "(loading…)";
-  splitExpand.href = `/pane/${encodeURIComponent(name)}`;
+  splitExpand.href = paneUrl(name);
 
   // Highlight active card
   grid?.querySelectorAll(".card").forEach((el) => {
@@ -619,7 +629,7 @@ function openSplit(name) {
   let retries = 0;
 
   function connectPane() {
-    splitEs = new EventSource(`/api/stream/pane/${encodeURIComponent(name)}`);
+    splitEs = new EventSource(apiUrl(`/api/stream/pane/${encodeURIComponent(name)}`));
     splitEs.addEventListener("pane", (ev) => {
       retries = 0;
       try {
@@ -699,7 +709,7 @@ splitSendForm?.addEventListener("submit", async (e) => {
     const body = text.trim()
       ? { text, enter: true, mode: "text" }
       : { text: "Enter", mode: "key" };
-    const res = await fetch(`/api/panes/${encodeURIComponent(activeSplitArm)}/send`, {
+    const res = await fetch(apiUrl(`/api/panes/${encodeURIComponent(activeSplitArm)}/send`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -723,7 +733,7 @@ document.querySelectorAll("[data-split-key]").forEach((btn) => {
   btn.addEventListener("click", async () => {
     if (!activeSplitArm) return;
     try {
-      const res = await fetch(`/api/panes/${encodeURIComponent(activeSplitArm)}/send`, {
+      const res = await fetch(apiUrl(`/api/panes/${encodeURIComponent(activeSplitArm)}/send`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: btn.dataset.splitKey, mode: "key" }),

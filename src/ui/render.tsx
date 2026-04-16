@@ -4,6 +4,11 @@ import type { PodStatus } from "../pod.ts";
 import { colorFor } from "./colors.ts";
 import { formatAge, formatJoinedAt } from "./format.ts";
 
+function paneUrl(name: string, instance?: string): string {
+  const base = `/pane/${encodeURIComponent(name)}`;
+  return instance ? `${base}?instance=${encodeURIComponent(instance)}` : base;
+}
+
 interface LayoutProps {
   title: string;
   children: any;
@@ -304,7 +309,7 @@ function TailRegion({ t }: { t: Tentacle }) {
   );
 }
 
-function Card({ t, compact }: { t: Tentacle; compact?: boolean }) {
+function Card({ t, compact, instance }: { t: Tentacle; compact?: boolean; instance?: string }) {
   const accent = colorFor(t.color);
   return (
     <article
@@ -366,7 +371,7 @@ function Card({ t, compact }: { t: Tentacle; compact?: boolean }) {
       <TailRegion t={t} />
 
       <footer class="card-foot">
-        <a class="btn btn-primary" href={`/pane/${encodeURIComponent(t.name)}`}>
+        <a class="btn btn-primary" href={paneUrl(t.name, instance)}>
           open
         </a>
       </footer>
@@ -375,7 +380,7 @@ function Card({ t, compact }: { t: Tentacle; compact?: boolean }) {
 }
 
 // Hero card — horizontal banner: glyph | titles | tail | open button.
-function HeroCard({ t }: { t: Tentacle }) {
+function HeroCard({ t, instance }: { t: Tentacle; instance?: string }) {
   const accent = colorFor(t.color) || "#7AB09D";
   const tail = t.lastTail.length === 0 ? null : t.lastTail.slice(-12).join("\n");
   return (
@@ -410,7 +415,7 @@ function HeroCard({ t }: { t: Tentacle }) {
       <pre class="hero-tail" aria-label={`recent output from ${t.name}`}>
         {tail ?? <span class="quiet-line">quiet for a moment</span>}
       </pre>
-      <a class="btn btn-primary hero-open" href={`/pane/${encodeURIComponent(t.name)}`}>
+      <a class="btn btn-primary hero-open" href={paneUrl(t.name, instance)}>
         open
       </a>
     </article>
@@ -522,7 +527,7 @@ export function DashboardPage({ snap, podOctopi, activeInstance }: { snap: Snaps
             class="hero-section"
             data-mentioned={mentioned.join(",")}
           >
-            <HeroCard t={teamLead} />
+            <HeroCard t={teamLead} instance={activeInstance} />
             <ArmsLayer />
           </section>
         )}
@@ -537,7 +542,7 @@ export function DashboardPage({ snap, podOctopi, activeInstance }: { snap: Snaps
         ) : (
           <section class="grid" id="grid">
             {others.map((t) => (
-              <Card t={t} compact={compact} />
+              <Card t={t} compact={compact} instance={activeInstance} />
             ))}
           </section>
         )}

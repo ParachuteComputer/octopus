@@ -8,6 +8,7 @@ import { runInit } from "./cli/init.ts";
 import { runLaunch } from "./cli/launch.ts";
 import { runPod } from "./cli/pod.ts";
 import { runSend } from "./cli/send.ts";
+import { runSessions } from "./cli/sessions.ts";
 import { runSpawn } from "./cli/spawn.ts";
 import { runUi } from "./cli/ui.ts";
 
@@ -47,6 +48,9 @@ async function main(): Promise<void> {
       return;
     case "spawn":
       await runSpawn(rest);
+      return;
+    case "sessions":
+      await runSessions(rest);
       return;
     default:
       console.error(`unknown command: ${command}`);

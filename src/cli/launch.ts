@@ -16,6 +16,36 @@ import { findInstance, findInstanceByScope } from "../pod.ts";
 
 const UI_WINDOW_NAME = "octopus-ui";
 
+export interface LaunchArgOptions {
+  team: string;
+  cwd: string;
+  session: string;
+  model: string;
+  skipPermissions: boolean;
+  resume?: string;
+  continueSession?: boolean;
+}
+
+export function buildClaudeLaunchArgs(opts: LaunchArgOptions): string[] {
+  const args = [
+    "tmux",
+    "new-session",
+    "-d",
+    "-s",
+    opts.session,
+    "-c",
+    opts.cwd,
+    "-e",
+    `OCTOPUS_TEAM=${opts.team}`,
+    "claude",
+  ];
+  if (opts.skipPermissions) args.push("--dangerously-skip-permissions");
+  if (opts.model) args.push("--model", opts.model);
+  if (opts.continueSession) args.push("--continue");
+  if (opts.resume) args.push("--resume", opts.resume);
+  return args;
+}
+
 export async function runLaunch(argv: string[]): Promise<void> {
   const { flags, positional } = parseFlags(argv, [
     "team",
@@ -26,6 +56,8 @@ export async function runLaunch(argv: string[]): Promise<void> {
     "no-ui",
     "ui-port",
     "ui-host",
+    "resume",
+    "continue",
   ]);
 
   // Resolve from pod registry. Three paths:
@@ -53,12 +85,17 @@ export async function runLaunch(argv: string[]): Promise<void> {
   const cwd = resolvedCwd;
   const session = (flags.session as string) ?? team;
   const model = (flags.model as string) ?? "";
-  // Default: pass --dangerously-skip-permissions so the team-lead can dispatch
-  // freely. Opt out via --no-skip-permissions or OCTOPUS_SKIP_PERMISSIONS=false
-  // for shared / less-trusted environments.
   const skipPermissions =
     !flags["no-skip-permissions"] &&
     process.env.OCTOPUS_SKIP_PERMISSIONS !== "false";
+
+  const continueSession = flags["continue"] === true;
+  const resume = typeof flags.resume === "string" ? flags.resume : undefined;
+  if (continueSession && resume) {
+    console.error("error: --continue and --resume are mutually exclusive.");
+    console.error("Use --continue for the most recent session, --resume <id> for a specific one.");
+    process.exit(1);
+  }
 
   if (!which("tmux")) {
     console.error("error: tmux is not installed or not on PATH (try `brew install tmux`).");
@@ -75,28 +112,34 @@ export async function runLaunch(argv: string[]): Promise<void> {
   }
 
   if (tmuxHasSession(session)) {
+    if (continueSession || resume) {
+      console.warn(
+        `note: tmux session "${session}" is already running — attach flags (--continue / --resume) are ignored.`,
+      );
+      console.warn(`To start a fresh claude with resume, kill the session first: tmux kill-session -t ${session}`);
+    }
     console.log(`attaching to existing tmux session "${session}"`);
   } else {
-    const claudeArgs = [
-      "tmux",
-      "new-session",
-      "-d",
-      "-s",
-      session,
-      "-c",
+    const claudeArgs = buildClaudeLaunchArgs({
+      team,
       cwd,
-      "-e",
-      `OCTOPUS_TEAM=${team}`,
-      "claude",
-    ];
-    if (skipPermissions) claudeArgs.push("--dangerously-skip-permissions");
-    if (model) claudeArgs.push("--model", model);
+      session,
+      model,
+      skipPermissions,
+      resume,
+      continueSession,
+    });
     const create = Bun.spawnSync(claudeArgs, { stdout: "inherit", stderr: "inherit" });
     if (create.exitCode !== 0) {
       console.error("error: failed to create tmux session.");
       process.exit(create.exitCode ?? 1);
     }
-    console.log(`started octopus team "${team}" in tmux session "${session}" (cwd: ${cwd})`);
+    const resumeNote = continueSession
+      ? " (resuming most recent session)"
+      : resume
+        ? ` (resuming session ${resume.slice(0, 8)}…)`
+        : "";
+    console.log(`started octopus team "${team}" in tmux session "${session}" (cwd: ${cwd})${resumeNote}`);
   }
 
   // Bring up the UI as a managed window inside the same tmux session, unless
@@ -134,8 +177,6 @@ interface EnsureUiOpts {
 }
 
 async function ensureUiWindow(opts: EnsureUiOpts): Promise<void> {
-  // 1. If a UI is already running (anywhere — tmux, daemon, foreign), don't
-  //    spawn a second one. Point at the live one and move on.
   const existing = readPidFile();
   if (existing && isProcessAlive(existing.pid)) {
     const probe = await probeOctopusUi(existing.host, existing.port);
@@ -147,15 +188,11 @@ async function ensureUiWindow(opts: EnsureUiOpts): Promise<void> {
     }
   }
 
-  // 2. If our session already has the UI window, leave it alone (idempotent
-  //    re-launch).
   if (tmuxListWindows(opts.session).includes(UI_WINDOW_NAME)) {
     console.log(`   UI window "${UI_WINDOW_NAME}" already present in session "${opts.session}".`);
     return;
   }
 
-  // 3. Build the command. Prefer `parachute-octopus` on PATH, fall back to
-  //    `octopus`, then to invoking this same script via bun for source-tree dev.
   const flags = [
     "--foreground",
     "--tmux-session",
@@ -186,9 +223,6 @@ async function ensureUiWindow(opts: EnsureUiOpts): Promise<void> {
 }
 
 function quote(s: string): string {
-  // Shell-quote for the tmux command string. tmux runs the command via
-  // /bin/sh -c, so single-quote anything containing whitespace or shell metas.
-  // Note: `-` placed at end of class to avoid being misread as a range.
-  if (/^[a-zA-Z0-9_./@:=+-]+$/.test(s)) return s; // eslint-disable-line no-useless-escape
+  if (/^[a-zA-Z0-9_./@:=+-]+$/.test(s)) return s;
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }

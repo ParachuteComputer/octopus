@@ -86,7 +86,7 @@ Bootstrap the current repo. Writes:
 Idempotent: re-running overwrites the four template files but preserves the
 rest of `CLAUDE.md`. Default team name is `octopus`.
 
-### `octopus launch [--team <name>] [--cwd <path>] [--session <name>] [--model <id>] [--no-ui] [--ui-port <n>] [--ui-host <addr>]`
+### `octopus launch [<name>] [--team <name>] [--cwd <path>] [--session <name>] [--model <id>] [--continue | --resume <session-id>] [--no-ui]`
 
 Start (or attach to) a tmux session running Claude Code as the team-lead, and
 **spawn the web UI as a managed window in the same tmux session**. One tmux
@@ -96,6 +96,14 @@ Defaults: team `octopus`, cwd `$PWD`, session name = team name. Inside an
 existing tmux session it does `switch-client` instead of `attach`. Pass
 `--no-ui` to skip the UI window (useful in dev when you want to run the UI
 yourself with `bun --hot`).
+
+Pass `--continue` to resume the most recent Claude Code session for the
+cwd, or `--resume <session-id>` for a specific one. Mutually exclusive;
+ignored (with a warning) if the tmux session already exists.
+
+### `octopus sessions [--cwd <path>]`
+
+List recent Claude Code sessions for the current cwd so you can pick one to resume.
 
 ### `octopus ui [--team <name>] [--port 6061] [--host 0.0.0.0] [--team-config <path>] [--foreground]`
 
