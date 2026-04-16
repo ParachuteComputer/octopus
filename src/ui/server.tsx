@@ -10,7 +10,10 @@ import { DashboardPage, PanePage } from "./render.tsx";
 import { resolvePublicDir, resolveSpawnTargetRoots, resolveTeamConfigPath } from "../paths.ts";
 
 const PORT = Number(process.env.OCTOPUS_UI_PORT ?? 6061);
-// Bind to loopback by default — opt into wider exposure with OCTOPUS_UI_HOST=0.0.0.0.
+// HOST/PORT here are fallbacks for direct invocation (`bun src/ui/server.tsx`).
+// In normal operation the CLI sets OCTOPUS_UI_HOST before importing this
+// module — and the CLI's default is 0.0.0.0, not 127.0.0.1. Don't take this
+// fallback as the product default.
 const HOST = process.env.OCTOPUS_UI_HOST ?? "127.0.0.1";
 const POLL_MS = Number(process.env.OCTOPUS_UI_POLL_MS ?? 2000);
 const TEAM_NAME = process.env.OCTOPUS_TEAM ?? "octopus";

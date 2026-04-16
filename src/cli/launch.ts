@@ -165,6 +165,7 @@ async function ensureUiWindow(opts: EnsureUiOpts): Promise<void> {
 function quote(s: string): string {
   // Shell-quote for the tmux command string. tmux runs the command via
   // /bin/sh -c, so single-quote anything containing whitespace or shell metas.
-  if (/^[a-zA-Z0-9_./@:=+-]+$/.test(s)) return s;
+  // Note: `-` placed at end of class to avoid being misread as a range.
+  if (/^[a-zA-Z0-9_./@:=+-]+$/.test(s)) return s; // eslint-disable-line no-useless-escape
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }

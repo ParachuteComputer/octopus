@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, openSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { parseFlags } from "./flags.ts";
@@ -98,6 +98,16 @@ async function alreadyRunning(opts: UiOptions): Promise<UiPidRecord | null> {
   if (existing && isProcessAlive(existing.pid)) {
     const probe = await probeOctopusUi(existing.host, existing.port);
     if (probe) return existing;
+    // Process alive but not responding — could be mid-startup, mid-shutdown,
+    // or genuinely orphaned (e.g. crashed listener, recycled PID). Surface
+    // the ambiguity so the user can decide rather than silently spawning a
+    // second daemon.
+    console.error(
+      `warning: PID ${existing.pid} is alive but not responding on ${existing.host}:${existing.port}.`,
+    );
+    console.error(
+      `         the PID file may be stale (different process now); run \`octopus ui stop\` to clear it.`,
+    );
   } else if (existing) {
     removePidFile(); // stale
   }
@@ -155,7 +165,7 @@ async function runUiStart(argv: string[]): Promise<void> {
 
   // 4. Default: daemonize. Spawn ourselves with --foreground and exit so the
   //    user's shell isn't holding the server. Logs go to the state dir.
-  return spawnDaemon(opts);
+  await spawnDaemon(opts);
 }
 
 async function runForeground(opts: UiOptions): Promise<void> {
@@ -217,7 +227,7 @@ async function runForeground(opts: UiOptions): Promise<void> {
   }
 }
 
-function spawnDaemon(opts: UiOptions): void {
+async function spawnDaemon(opts: UiOptions): Promise<void> {
   const log = logFilePath();
   mkdirSync(dirname(log), { recursive: true });
   const fd = openSync(log, "a");
@@ -234,6 +244,18 @@ function spawnDaemon(opts: UiOptions): void {
     env: { ...process.env, OCTOPUS_UI_DAEMONIZED: "1" },
   });
   child.unref();
+  // Parent has handed the fd to the child; close our reference so we don't
+  // hold an extra one until process exit.
+  closeSync(fd);
+
+  // Wait briefly for the child to write its PID file so the user gets a
+  // crisp "started" report rather than racing `octopus ui status`.
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    const rec = readPidFile();
+    if (rec && rec.pid === child.pid) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
 
   console.log(`🐙 octopus UI starting in background → ${displayUrl(opts.host, opts.port)}`);
   console.log(`   logs: ${log}`);
@@ -268,7 +290,11 @@ async function runUiStop(argv: string[]): Promise<void> {
     return;
   }
 
-  // PID alive — verify it self-identifies as us before signaling.
+  // PID alive — verify it self-identifies as us before signaling. We treat
+  // any failure of the health probe as "do not signal" because PID numbers
+  // can be reused by the OS if our previous process crashed without removing
+  // the PID file (SIGKILL, OOM, etc.). Trusting the PID file alone risks
+  // killing a foreign process that happened to inherit the number.
   const probe = await probeOctopusUi(record.host, record.port);
   if (!probe || probe.pid !== record.pid) {
     if (await isPortHeld(record.host, record.port)) {
@@ -279,14 +305,22 @@ async function runUiStop(argv: string[]): Promise<void> {
       process.exit(1);
     }
     console.log(
-      `PID ${record.pid} is alive but no octopus UI is responding on ${record.host}:${record.port}.`,
+      `stale-looking PID file: pid ${record.pid} is alive but not responding as an octopus UI on ${record.host}:${record.port}.`,
     );
-    console.log(`Sending SIGTERM anyway (recorded as octopus UI in PID file).`);
+    console.log(
+      `Removing PID file but NOT signaling pid ${record.pid} (could be a recycled PID belonging to a foreign process).`,
+    );
+    console.log(`If you're sure pid ${record.pid} is the leaked octopus UI, kill it manually.`);
+    removePidFile();
+    return;
   }
 
   if (record.mode === "tmux" && record.tmuxSession) {
     console.log(
       `note: this UI is owned by tmux session "${record.tmuxSession}". Killing the bun process — tmux will close the window.`,
+    );
+    console.log(
+      `      (or close it via tmux: \`tmux kill-window -t ${record.tmuxSession}:octopus-ui\`)`,
     );
   }
 
@@ -325,7 +359,11 @@ async function runUiStop(argv: string[]): Promise<void> {
 }
 
 async function runUiRestart(argv: string[]): Promise<void> {
-  await runUiStop([]);
+  // Forward --timeout to the stop phase so `octopus ui restart --timeout 500`
+  // applies that bound to the stop, not just the (ignored) start.
+  const { flags } = parseFlags(argv, ["timeout"]);
+  const stopArgv = flags["timeout"] ? ["--timeout", String(flags["timeout"])] : [];
+  await runUiStop(stopArgv);
   await runUiStart(argv);
 }
 
