@@ -240,10 +240,49 @@ export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
     };
   });
 
+  // Synthesize a team-lead entry if the primary session was detected but
+  // isn't in config.members. This ensures the hero card always shows up
+  // when a team-lead pane is live, even before any tentacles are spawned.
+  const hasConfiguredLead = config.members.some((m) => m.agentType === "team-lead");
+  if (!hasConfiguredLead && primarySessionCapture) {
+    const lines = primarySessionCapture.content.split("\n");
+    const clean = stripStatusLines(lines);
+    const h = hashLines(clean);
+    const cached = activityCache.get(primarySessionCapture.pane.paneId);
+    let lastActivityMs: number | null = null;
+    if (!cached) {
+      activityCache.set(primarySessionCapture.pane.paneId, { hash: h, at: now });
+    } else if (cached.hash !== h) {
+      activityCache.set(primarySessionCapture.pane.paneId, { hash: h, at: now });
+      lastActivityMs = 0;
+    } else {
+      lastActivityMs = now - cached.at;
+    }
+
+    tentacles.unshift({
+      name: "team-lead",
+      agentType: "team-lead",
+      cwd: "",
+      cwdShort: "",
+      color: "amber",
+      joinedAt: config.createdAt,
+      configPaneId: "",
+      livePaneId: primarySessionCapture.pane.paneId,
+      status: deriveStatus(lines),
+      stale: false,
+      lastTail: clean.slice(-10),
+      lastActivityMs,
+      fullTail: primarySessionCapture.content,
+      recentlyMentioned: mentioned,
+    });
+  }
+
   // Orphans: live panes whose tentacle name (if any) is not in the config
   const configNames = new Set(config.members.map((m) => m.name));
+  // Exclude the synthesized team-lead pane from orphans
+  const teamLeadPaneId = primarySessionCapture?.pane.paneId;
   const orphans: OrphanPane[] = captures
-    .filter((c) => !c.name || !configNames.has(c.name))
+    .filter((c) => c.pane.paneId !== teamLeadPaneId && (!c.name || !configNames.has(c.name)))
     .map((c) => ({
       paneId: c.pane.paneId,
       session: c.pane.session,
