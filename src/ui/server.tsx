@@ -51,6 +51,13 @@ app.get("/api/state", async (c) => {
   return c.json(snap);
 });
 
+// Identifies this process as an octopus UI. Used by the CLI to decide whether
+// a held port belongs to us (no-op on `octopus ui`) or a foreign process
+// (refuse to act in `octopus ui stop`).
+app.get("/api/health", (c) => {
+  return c.json({ name: "octopus-ui", pid: process.pid });
+});
+
 app.get("/api/pane/:name", async (c) => {
   const name = c.req.param("name");
   const lines = Number(c.req.query("lines") ?? 300);
