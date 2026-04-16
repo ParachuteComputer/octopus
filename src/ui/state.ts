@@ -86,8 +86,16 @@ const PRIMARY_CACHE_TTL_MS = 30_000;
 let primaryCache: { paneId: string; at: number } | null = null;
 
 export async function loadConfig(path: string = currentConfigPath): Promise<TeamConfig> {
-  const raw = await readFile(path, "utf8");
-  return JSON.parse(raw) as TeamConfig;
+  try {
+    const raw = await readFile(path, "utf8");
+    return JSON.parse(raw) as TeamConfig;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      console.log(`team config not found at ${path}; dashboard will populate when team is created`);
+      return { name: "octopus", createdAt: Date.now(), members: [] };
+    }
+    throw err;
+  }
 }
 
 export function shortCwd(cwd: string): string {
