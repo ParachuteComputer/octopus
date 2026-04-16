@@ -8,6 +8,9 @@ const search = document.getElementById("search");
 const refreshBtn = document.getElementById("refresh-btn");
 const refreshIndicator = document.getElementById("refresh-indicator");
 
+// Split-pane state — declared early so applyState can reference it.
+let activeSplitArm = null;
+
 // Keep in sync with src/colors.ts — Parachute-tuned tints against forest-dark bg.
 const colorMap = {
   blue: "#8AA6BF",
@@ -63,10 +66,11 @@ function tailHtml(t) {
   return `<pre class="tail tail-quiet" aria-label="recent output from ${escapeHtml(t.name)}"><span class="quiet-line">${msg}</span></pre>`;
 }
 
-function renderCard(t) {
+function renderCard(t, compact) {
   const accent = colorFor(t.color);
   const classes = ["card", `card-${t.status}`];
   if (t.stale) classes.push("card-stale");
+  if (compact) classes.push("card-compact");
 
   return `
 <article class="${classes.join(" ")}" data-name="${escapeHtml(t.name)}" data-cwd="${escapeHtml(t.cwdShort)}" data-status="${t.status}" style="--tentacle: ${accent};">
@@ -95,28 +99,26 @@ function renderCard(t) {
 function renderHero(t) {
   const accent = colorFor(t.color) || "#7AB09D";
   const tailContent = t.lastTail && t.lastTail.length
-    ? escapeHtml(t.lastTail.slice(-20).join("\n"))
+    ? escapeHtml(t.lastTail.slice(-12).join("\n"))
     : `<span class="quiet-line">quiet for a moment</span>`;
   return `
-<div class="hero-head">
-  <div class="hero-glyph" aria-hidden="true">${OCTOPUS_SVG}</div>
-  <div class="hero-titles">
-    <div class="hero-row">
-      <span class="status-dot status-${t.status}" aria-label="${t.status}"></span>
-      <h2 class="hero-name">${escapeHtml(t.name)}</h2>
-      <span class="pill pill-team-lead">team-lead</span>
-    </div>
-    <div class="hero-sub">
-      <span class="mono dim" title="${escapeHtml(t.cwd)}">${escapeHtml(t.cwdShort || "—")}</span>
-      <span class="hero-dot">·</span>
-      <span class="mono dim">pane ${t.livePaneId ? escapeHtml(t.livePaneId) : "—"}</span>
-      <span class="hero-dot">·</span>
-      <span class="age" data-age="${t.lastActivityMs ?? ""}">${formatAge(t.lastActivityMs)}</span>
-    </div>
+<div class="hero-glyph" aria-hidden="true">${OCTOPUS_SVG}</div>
+<div class="hero-titles">
+  <div class="hero-row">
+    <span class="status-dot status-${t.status}" aria-label="${t.status}"></span>
+    <h2 class="hero-name">${escapeHtml(t.name)}</h2>
+    <span class="pill pill-team-lead">team-lead</span>
   </div>
-  <a class="btn btn-primary hero-open" href="/pane/${encodeURIComponent(t.name)}">open</a>
+  <div class="hero-sub">
+    <span class="mono dim" title="${escapeHtml(t.cwd)}">${escapeHtml(t.cwdShort || "—")}</span>
+    <span class="hero-dot">·</span>
+    <span class="mono dim">pane ${t.livePaneId ? escapeHtml(t.livePaneId) : "—"}</span>
+    <span class="hero-dot">·</span>
+    <span class="age" data-age="${t.lastActivityMs ?? ""}">${formatAge(t.lastActivityMs)}</span>
+  </div>
 </div>
-<pre class="hero-tail" aria-label="recent output from ${escapeHtml(t.name)}">${tailContent}</pre>`;
+<pre class="hero-tail" aria-label="recent output from ${escapeHtml(t.name)}">${tailContent}</pre>
+<a class="btn btn-primary hero-open" href="/pane/${encodeURIComponent(t.name)}">open</a>`;
 }
 
 // Keep in sync with src/render.tsx OctopusGlyph.
@@ -172,6 +174,7 @@ function cssEscape(s) {
 function applyState(snap) {
   const teamLead = snap.tentacles.find((t) => t.agentType === "team-lead");
   const others = snap.tentacles.filter((t) => t.agentType !== "team-lead");
+  const compact = others.length >= 6;
 
   // Header pill counts
   const alive = snap.tentacles.filter((t) => t.status !== "dead").length;
@@ -204,7 +207,7 @@ function applyState(snap) {
     const sig = signature(t);
     const el = existing.get(name);
     if (el && el.dataset.sig === sig) continue;
-    template.innerHTML = renderCard(t);
+    template.innerHTML = renderCard(t, compact);
     const fresh = template.firstElementChild;
     fresh.dataset.sig = sig;
     if (el) {
@@ -216,6 +219,13 @@ function applyState(snap) {
     }
   }
   if (fragment.childNodes.length) grid.appendChild(fragment);
+
+  // Re-apply active card highlight after grid re-render
+  if (activeSplitArm) {
+    grid.querySelectorAll(".card").forEach((el) => {
+      el.classList.toggle("card-active", el.dataset.name === activeSplitArm);
+    });
+  }
 
   applySearch();
   if (teamLead && Array.isArray(teamLead.recentlyMentioned)) {
@@ -545,4 +555,209 @@ function toast(msg, isError = false) {
     el.classList.remove("toast-show");
     setTimeout(() => el.remove(), 220);
   }, 2400);
+}
+
+// Split-pane dashboard ----------------------------------------
+// Clicking a card opens its scrollback in a right panel instead
+// of navigating to /pane/:name. The grid stays visible on the left.
+
+const dashboard = document.querySelector(".dashboard");
+const splitPanel = document.getElementById("split-panel");
+const splitName = document.getElementById("split-name");
+const splitMeta = document.getElementById("split-meta");
+const splitStatusDot = document.getElementById("split-status-dot");
+const splitScrollback = document.getElementById("split-scrollback");
+const splitExpand = document.getElementById("split-expand");
+const splitClose = document.getElementById("split-close");
+const splitSendForm = document.getElementById("split-send-form");
+const splitSendInput = document.getElementById("split-send-input");
+const isMobile = () => window.innerWidth <= 720;
+
+// (activeSplitArm declared at top of file for applyState access)
+let splitEs = null;  // EventSource for the split pane stream
+
+function atBottom(el) {
+  return el.scrollHeight - el.clientHeight - el.scrollTop < 40;
+}
+
+function openSplit(name) {
+  if (isMobile()) {
+    // On mobile, fall back to navigate-away
+    window.location.href = `/pane/${encodeURIComponent(name)}`;
+    return;
+  }
+  if (activeSplitArm === name) {
+    closeSplit();
+    return;
+  }
+
+  activeSplitArm = name;
+
+  // Update URL
+  const url = new URL(window.location);
+  url.searchParams.set("arm", name);
+  history.replaceState(null, "", url);
+
+  // Show panel, enter split layout
+  splitPanel.hidden = false;
+  dashboard.classList.add("dashboard-split");
+
+  // Set header info
+  splitName.textContent = `@${name}`;
+  splitMeta.textContent = "";
+  splitStatusDot.className = "status-dot";
+  splitScrollback.textContent = "(loading…)";
+  splitExpand.href = `/pane/${encodeURIComponent(name)}`;
+
+  // Highlight active card
+  grid?.querySelectorAll(".card").forEach((el) => {
+    el.classList.toggle("card-active", el.dataset.name === name);
+  });
+
+  // Connect SSE for this pane
+  if (splitEs) splitEs.close();
+  let retries = 0;
+
+  function connectPane() {
+    splitEs = new EventSource(`/api/stream/pane/${encodeURIComponent(name)}`);
+    splitEs.addEventListener("pane", (ev) => {
+      retries = 0;
+      try {
+        const { tentacle, output } = JSON.parse(ev.data);
+        // Update header meta
+        splitMeta.textContent = tentacle.cwdShort || "";
+        splitStatusDot.className = `status-dot status-${tentacle.status}`;
+
+        // Update scrollback
+        const stick = atBottom(splitScrollback);
+        splitScrollback.textContent = output || "(no output)";
+        if (stick) splitScrollback.scrollTop = splitScrollback.scrollHeight;
+      } catch (err) {
+        console.error("split pane error", err);
+      }
+    });
+    splitEs.addEventListener("gone", () => {
+      splitEs.close();
+      splitScrollback.textContent += "\n\n— tentacle is gone —";
+    });
+    splitEs.addEventListener("error", () => {
+      splitEs.close();
+      retries = Math.min(retries + 1, 5);
+      if (activeSplitArm === name) {
+        setTimeout(connectPane, 500 * retries);
+      }
+    });
+  }
+
+  connectPane();
+  splitSendInput.focus();
+}
+
+function closeSplit() {
+  activeSplitArm = null;
+  if (splitEs) { splitEs.close(); splitEs = null; }
+  splitPanel.hidden = true;
+  dashboard.classList.remove("dashboard-split");
+  grid?.querySelectorAll(".card.card-active").forEach((el) => el.classList.remove("card-active"));
+
+  // Clean URL
+  const url = new URL(window.location);
+  url.searchParams.delete("arm");
+  history.replaceState(null, "", url);
+}
+
+// Close button
+splitClose?.addEventListener("click", closeSplit);
+
+// Card click → open split (but not when clicking shutdown or the open link on mobile)
+document.addEventListener("click", (e) => {
+  // Don't intercept shutdown buttons
+  if (e.target.closest("[data-shutdown]")) return;
+  const card = e.target.closest(".card[data-name]");
+  if (!card) return;
+  // If clicking the "open" link, intercept for split on desktop
+  const openLink = e.target.closest(".card-foot a");
+  if (openLink && !isMobile()) {
+    e.preventDefault();
+    openSplit(card.dataset.name);
+    return;
+  }
+  // If the card itself was clicked (not a button/link inside it)
+  if (!e.target.closest("a, button")) {
+    e.preventDefault();
+    openSplit(card.dataset.name);
+  }
+});
+
+// Send form in split panel
+splitSendForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!activeSplitArm) return;
+  const text = splitSendInput.value;
+  splitSendInput.disabled = true;
+  try {
+    const body = text.trim()
+      ? { text, enter: true, mode: "text" }
+      : { text: "Enter", mode: "key" };
+    const res = await fetch(`/api/panes/${encodeURIComponent(activeSplitArm)}/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      toast(`send failed: ${j.error ?? res.status}`, true);
+    } else {
+      splitSendInput.value = "";
+    }
+  } catch (err) {
+    toast(`send failed: ${err.message}`, true);
+  } finally {
+    splitSendInput.disabled = false;
+    splitSendInput.focus();
+  }
+});
+
+// Special key buttons in split panel
+document.querySelectorAll("[data-split-key]").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    if (!activeSplitArm) return;
+    try {
+      const res = await fetch(`/api/panes/${encodeURIComponent(activeSplitArm)}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: btn.dataset.splitKey, mode: "key" }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast(`key send failed: ${j.error ?? res.status}`, true);
+      }
+    } catch (err) {
+      toast(`key send failed: ${err.message}`, true);
+    }
+  });
+});
+
+// Esc closes split panel (when not in an input/modal)
+const origKeydown = document.querySelector("[data-page]");
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && activeSplitArm) {
+    const tag = document.activeElement?.tagName;
+    const typing = tag === "INPUT" || tag === "TEXTAREA";
+    const modalOpen = document.querySelector(".modal-backdrop:not([hidden])");
+    if (!modalOpen) {
+      if (typing && document.activeElement === splitSendInput) {
+        splitSendInput.blur();
+      } else if (!typing) {
+        closeSplit();
+      }
+    }
+  }
+});
+
+// Restore split from URL on load (?arm=name)
+const initialArm = new URLSearchParams(window.location.search).get("arm");
+if (initialArm && !isMobile()) {
+  // Wait a tick for SSR grid to be in the DOM
+  requestAnimationFrame(() => openSplit(initialArm));
 }

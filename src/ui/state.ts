@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { capturePane, extractTentacleName, isPrimarySessionPane, listPanes } from "./tmux.ts";
+import { capturePane, extractTentacleName, isClaudeCodePane, isPrimarySessionPane, listPanes, movePaneToBackgroundWindow } from "./tmux.ts";
 
 export interface ConfigMember {
   agentId: string;
@@ -86,8 +86,16 @@ const PRIMARY_CACHE_TTL_MS = 30_000;
 let primaryCache: { paneId: string; at: number } | null = null;
 
 export async function loadConfig(path: string = currentConfigPath): Promise<TeamConfig> {
-  const raw = await readFile(path, "utf8");
-  return JSON.parse(raw) as TeamConfig;
+  try {
+    const raw = await readFile(path, "utf8");
+    return JSON.parse(raw) as TeamConfig;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      console.log(`team config not found at ${path}; dashboard will populate when team is created`);
+      return { name: "octopus", createdAt: Date.now(), members: [] };
+    }
+    throw err;
+  }
 }
 
 export function shortCwd(cwd: string): string {
@@ -133,9 +141,14 @@ function stripStatusLines(lines: string[]): string[] {
   });
 }
 
-export async function buildSnapshot(configPath?: string): Promise<Snapshot> {
-  const config = await loadConfig(configPath);
-  const livePanes = await listPanes();
+export interface InstanceContext {
+  configPath?: string;
+  session?: string;
+}
+
+export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
+  const config = await loadConfig(ctx?.configPath);
+  const livePanes = await listPanes(ctx?.session);
 
   // First pass — capture every pane, extract tentacle name from content
   const captures = await Promise.all(
@@ -154,8 +167,18 @@ export async function buildSnapshot(configPath?: string): Promise<Snapshot> {
   // Detect it by the teammates strip / count instead. Cache the answer for 30s
   // so a transient miss during slash-command dispatch doesn't make the
   // team-lead card vanish from the grid.
+  //
+  // Fallback: if no pane has the @main strip (session not in team mode),
+  // look for any untagged Claude Code pane — that's likely the team-lead.
   const now = Date.now();
+  const tentacleNames = new Set(captures.filter((c) => c.name).map((c) => c.name));
   let primarySessionCapture = captures.find((c) => isPrimarySessionPane(c.content));
+  if (!primarySessionCapture) {
+    // Fallback: untagged Claude Code pane (not a tentacle)
+    primarySessionCapture = captures.find(
+      (c) => !c.name && isClaudeCodePane(c.content),
+    );
+  }
   if (primarySessionCapture) {
     primaryCache = { paneId: primarySessionCapture.pane.paneId, at: now };
   } else if (primaryCache && now - primaryCache.at < PRIMARY_CACHE_TTL_MS) {
@@ -227,16 +250,73 @@ export async function buildSnapshot(configPath?: string): Promise<Snapshot> {
     };
   });
 
+  // Synthesize a team-lead entry if the primary session was detected but
+  // isn't in config.members. This ensures the hero card always shows up
+  // when a team-lead pane is live, even before any tentacles are spawned.
+  const hasConfiguredLead = config.members.some((m) => m.agentType === "team-lead");
+  if (!hasConfiguredLead && primarySessionCapture) {
+    const lines = primarySessionCapture.content.split("\n");
+    const clean = stripStatusLines(lines);
+    const h = hashLines(clean);
+    const cached = activityCache.get(primarySessionCapture.pane.paneId);
+    let lastActivityMs: number | null = null;
+    if (!cached) {
+      activityCache.set(primarySessionCapture.pane.paneId, { hash: h, at: now });
+    } else if (cached.hash !== h) {
+      activityCache.set(primarySessionCapture.pane.paneId, { hash: h, at: now });
+      lastActivityMs = 0;
+    } else {
+      lastActivityMs = now - cached.at;
+    }
+
+    tentacles.unshift({
+      name: "team-lead",
+      agentType: "team-lead",
+      cwd: "",
+      cwdShort: "",
+      color: "amber",
+      joinedAt: config.createdAt,
+      configPaneId: "",
+      livePaneId: primarySessionCapture.pane.paneId,
+      status: deriveStatus(lines),
+      stale: false,
+      lastTail: clean.slice(-10),
+      lastActivityMs,
+      fullTail: primarySessionCapture.content,
+      recentlyMentioned: mentioned,
+    });
+  }
+
   // Orphans: live panes whose tentacle name (if any) is not in the config
   const configNames = new Set(config.members.map((m) => m.name));
+  // Exclude the synthesized team-lead pane from orphans
+  const teamLeadPaneId = primarySessionCapture?.pane.paneId;
   const orphans: OrphanPane[] = captures
-    .filter((c) => !c.name || !configNames.has(c.name))
+    .filter((c) => c.pane.paneId !== teamLeadPaneId && (!c.name || !configNames.has(c.name)))
     .map((c) => ({
       paneId: c.pane.paneId,
       session: c.pane.session,
       tentacleName: c.name,
       tail: stripStatusLines(c.content.split("\n")).slice(-4),
     }));
+
+  // Auto-organize: move arm panes that share a window with the team-lead
+  // to their own background windows. This keeps the team-lead pane at full
+  // terminal width so captured output is wider and more useful in the UI.
+  if (primarySessionCapture) {
+    const leadWindow = primarySessionCapture.pane.window;
+    const leadSession = primarySessionCapture.pane.session;
+    const panesInLeadWindow = livePanes.filter(
+      (p) =>
+        p.paneId !== primarySessionCapture!.pane.paneId &&
+        p.session === leadSession &&
+        p.window === leadWindow,
+    );
+    for (const p of panesInLeadWindow) {
+      const cap = captures.find((c) => c.pane.paneId === p.paneId);
+      await movePaneToBackgroundWindow(p.paneId, leadSession, cap?.name ?? undefined);
+    }
+  }
 
   return {
     generatedAt: now,
@@ -266,11 +346,11 @@ export function extractMentions(paneContent: string, knownNames: Set<string>): s
   return [...seen];
 }
 
-export async function snapshotForTentacle(name: string, lines = 200): Promise<{
+export async function snapshotForTentacle(name: string, lines = 200, ctx?: InstanceContext): Promise<{
   tentacle: Tentacle | null;
   output: string;
 }> {
-  const snap = await buildSnapshot();
+  const snap = await buildSnapshot(ctx);
   const t = snap.tentacles.find((x) => x.name === name);
   if (!t || !t.livePaneId) return { tentacle: t ?? null, output: "" };
   const output = await capturePane(t.livePaneId, lines);

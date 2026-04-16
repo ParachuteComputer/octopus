@@ -22,13 +22,16 @@ export interface LivePane {
   height: number;
 }
 
-export async function listPanes(): Promise<LivePane[]> {
-  const out = await run([
-    "list-panes",
-    "-a",
-    "-F",
-    "#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_width}\t#{pane_height}",
-  ]);
+export async function listPanes(sessionFilter?: string): Promise<LivePane[]> {
+  const args = sessionFilter
+    ? ["list-panes", "-t", sessionFilter, "-F", "#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_width}\t#{pane_height}"]
+    : ["list-panes", "-a", "-F", "#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_width}\t#{pane_height}"];
+  let out: string;
+  try {
+    out = await run(args);
+  } catch {
+    return [];
+  }
   return out
     .trim()
     .split("\n")
@@ -88,6 +91,34 @@ export function isValidKey(key: string): boolean {
   return ALLOWED_KEYS.has(key);
 }
 
+/**
+ * Move a pane to its own background window in the same session.
+ * Used to keep arm panes from shrinking the team-lead's terminal width.
+ * The arm keeps running — it just lives in a separate tmux window.
+ */
+export async function movePaneToBackgroundWindow(
+  paneId: string,
+  session: string,
+  windowName?: string,
+): Promise<boolean> {
+  try {
+    // -s = source pane to break out, -d = stay in current window (don't follow)
+    await run(["break-pane", "-d", "-s", paneId]);
+    // Optionally rename the new window
+    if (windowName) {
+      // break-pane creates a new window at the next index — find it by pane ID
+      const panes = await listPanes(session);
+      const moved = panes.find((p) => p.paneId === paneId);
+      if (moved) {
+        await run(["rename-window", "-t", `${session}:${moved.window}`, windowName]).catch(() => {});
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendKey(paneId: string, key: string): Promise<void> {
   if (!isValidKey(key)) {
     throw new Error(`unsupported key: ${key}`);
@@ -116,4 +147,19 @@ const PRIMARY_SIGNALS: RegExp[] = [
 
 export function isPrimarySessionPane(paneContent: string): boolean {
   return PRIMARY_SIGNALS.some((rx) => rx.test(paneContent));
+}
+
+// Broader check: does this pane look like a Claude Code session at all?
+// Used as a fallback when the primary session isn't running in team mode
+// (no @main strip) but we still want to detect the team-lead.
+const CLAUDE_CODE_SIGNALS: RegExp[] = [
+  /^\s*❯\s*/m,                          // Claude Code prompt
+  /Running…|Cogitated|Sautéed|Pondering|Thinking|Simmering|Marinating/,
+  /bypass permissions on/,
+  /Remote Control active/,
+  /⏵⏵/,                                 // fast-mode indicator
+];
+
+export function isClaudeCodePane(paneContent: string): boolean {
+  return CLAUDE_CODE_SIGNALS.some((rx) => rx.test(paneContent));
 }

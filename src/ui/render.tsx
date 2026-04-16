@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import type { Snapshot, Tentacle } from "./state.ts";
+import type { PodStatus } from "../pod.ts";
 import { colorFor } from "./colors.ts";
 import { formatAge, formatJoinedAt } from "./format.ts";
 
@@ -303,11 +304,11 @@ function TailRegion({ t }: { t: Tentacle }) {
   );
 }
 
-function Card({ t }: { t: Tentacle }) {
+function Card({ t, compact }: { t: Tentacle; compact?: boolean }) {
   const accent = colorFor(t.color);
   return (
     <article
-      class={`card card-${t.status}${t.stale ? " card-stale" : ""}`}
+      class={`card card-${t.status}${t.stale ? " card-stale" : ""}${compact ? " card-compact" : ""}`}
       data-name={t.name}
       data-cwd={t.cwdShort}
       data-status={t.status}
@@ -373,10 +374,10 @@ function Card({ t }: { t: Tentacle }) {
   );
 }
 
-// Hero card for the team-lead row. Same data, more breathing room.
+// Hero card — horizontal banner: glyph | titles | tail | open button.
 function HeroCard({ t }: { t: Tentacle }) {
   const accent = colorFor(t.color) || "#7AB09D";
-  const tail = t.lastTail.length === 0 ? null : t.lastTail.slice(-20).join("\n");
+  const tail = t.lastTail.length === 0 ? null : t.lastTail.slice(-12).join("\n");
   return (
     <article
       class={`hero hero-${t.status}`}
@@ -385,35 +386,33 @@ function HeroCard({ t }: { t: Tentacle }) {
       data-status={t.status}
       style={`--tentacle: ${accent};`}
     >
-      <div class="hero-head">
-        <div class="hero-glyph" aria-hidden="true">
-          <OctopusGlyph />
+      <div class="hero-glyph" aria-hidden="true">
+        <OctopusGlyph />
+      </div>
+      <div class="hero-titles">
+        <div class="hero-row">
+          <StatusDot status={t.status} />
+          <h2 class="hero-name">{t.name}</h2>
+          <span class="pill pill-team-lead">team-lead</span>
         </div>
-        <div class="hero-titles">
-          <div class="hero-row">
-            <StatusDot status={t.status} />
-            <h2 class="hero-name">{t.name}</h2>
-            <span class="pill pill-team-lead">team-lead</span>
-          </div>
-          <div class="hero-sub">
-            <span class="mono dim" title={t.cwd}>
-              {t.cwdShort || "—"}
-            </span>
-            <span class="hero-dot">·</span>
-            <span class="mono dim">pane {t.livePaneId ?? "—"}</span>
-            <span class="hero-dot">·</span>
-            <span class="age" data-age={t.lastActivityMs ?? ""}>
-              {formatAge(t.lastActivityMs)}
-            </span>
-          </div>
+        <div class="hero-sub">
+          <span class="mono dim" title={t.cwd}>
+            {t.cwdShort || "—"}
+          </span>
+          <span class="hero-dot">·</span>
+          <span class="mono dim">pane {t.livePaneId ?? "—"}</span>
+          <span class="hero-dot">·</span>
+          <span class="age" data-age={t.lastActivityMs ?? ""}>
+            {formatAge(t.lastActivityMs)}
+          </span>
         </div>
-        <a class="btn btn-primary hero-open" href={`/pane/${encodeURIComponent(t.name)}`}>
-          open
-        </a>
       </div>
       <pre class="hero-tail" aria-label={`recent output from ${t.name}`}>
         {tail ?? <span class="quiet-line">quiet for a moment</span>}
       </pre>
+      <a class="btn btn-primary hero-open" href={`/pane/${encodeURIComponent(t.name)}`}>
+        open
+      </a>
     </article>
   );
 }
@@ -430,13 +429,92 @@ function EmptyState() {
   );
 }
 
-export function DashboardPage({ snap }: { snap: Snapshot }) {
+function PodTabs({ octopi, active }: { octopi?: PodStatus[]; active?: string }) {
+  if (!octopi || octopi.length <= 1) return null;
+  return (
+    <nav class="pod-tabs" aria-label="octopus instances">
+      {octopi.map((o) => (
+        <a
+          class={`pod-tab${o.name === active ? " pod-tab-active" : ""}${o.running ? "" : " pod-tab-stopped"}`}
+          href={`/?instance=${encodeURIComponent(o.name)}`}
+          title={o.description || o.scope}
+        >
+          <span class={`pod-dot${o.running ? " pod-dot-running" : ""}`} />
+          {o.name}
+        </a>
+      ))}
+      <a class="pod-tab pod-tab-overview" href="/" title="Pod overview">
+        all
+      </a>
+    </nav>
+  );
+}
+
+export function PodOverviewPage({ octopi }: { octopi: PodStatus[] }) {
+  return (
+    <Layout title="Octopus Pod">
+      <header class="app-header">
+        <div class="app-header-inner">
+          <div class="brand">
+            <span class="brand-glyph" aria-hidden="true">
+              <OctopusGlyph />
+            </span>
+            <span class="brand-name">Octopus</span>
+            <span class="brand-team">/ pod</span>
+          </div>
+          <div class="meta">
+            <span class="stat-pill" data-stat="octopi">
+              <span class="stat-value">{octopi.length}</span>
+              <span class="stat-label">octop{octopi.length === 1 ? "us" : "i"}</span>
+            </span>
+            <span class="stat-pill" data-stat="running">
+              <span class="stat-value">{octopi.filter((o) => o.running).length}</span>
+              <span class="stat-label">running</span>
+            </span>
+          </div>
+        </div>
+      </header>
+      <main class="dashboard">
+        <section class="pod-grid">
+          {octopi.map((o) => (
+            <a class={`pod-card${o.running ? " pod-card-running" : ""}`} href={`/?instance=${encodeURIComponent(o.name)}`}>
+              <div class="pod-card-head">
+                <span class={`pod-dot${o.running ? " pod-dot-running" : ""}`} />
+                <h2>{o.name}</h2>
+              </div>
+              <dl class="pod-card-facts">
+                <div>
+                  <dt>scope</dt>
+                  <dd class="mono">{o.scope.replace(/^\/Users\/[^/]+/, "~")}</dd>
+                </div>
+                <div>
+                  <dt>status</dt>
+                  <dd>{o.running ? "running" : "stopped"}</dd>
+                </div>
+                {o.description && (
+                  <div>
+                    <dt>about</dt>
+                    <dd>{o.description}</dd>
+                  </div>
+                )}
+              </dl>
+            </a>
+          ))}
+        </section>
+      </main>
+    </Layout>
+  );
+}
+
+export function DashboardPage({ snap, podOctopi, activeInstance }: { snap: Snapshot; podOctopi?: PodStatus[]; activeInstance?: string }) {
   const teamLead = snap.tentacles.find((t) => t.agentType === "team-lead");
   const others = snap.tentacles.filter((t) => t.agentType !== "team-lead");
   const mentioned = teamLead?.recentlyMentioned ?? [];
+  const compact = others.length >= 6;
   return (
-    <Layout title="Octopus">
+    <Layout title={activeInstance ? `Octopus / ${activeInstance}` : "Octopus"}>
       <Header snap={snap} />
+      <PodTabs octopi={podOctopi} active={activeInstance} />
       <SearchRow />
       <main class="dashboard">
         {teamLead && (
@@ -459,10 +537,34 @@ export function DashboardPage({ snap }: { snap: Snapshot }) {
         ) : (
           <section class="grid" id="grid">
             {others.map((t) => (
-              <Card t={t} />
+              <Card t={t} compact={compact} />
             ))}
           </section>
         )}
+
+        <aside class="split-panel" id="split-panel" hidden>
+          <div class="split-panel-head">
+            <div class="split-panel-title">
+              <span class="status-dot" id="split-status-dot" />
+              <span class="split-panel-name" id="split-name" />
+              <span class="split-panel-meta" id="split-meta" />
+            </div>
+            <div class="split-panel-actions">
+              <a class="btn btn-ghost" id="split-expand" href="#" title="Open full pane view">expand</a>
+              <button type="button" class="split-close" id="split-close" title="Close panel (Esc)" aria-label="close panel">×</button>
+            </div>
+          </div>
+          <pre class="split-scrollback" id="split-scrollback">(loading…)</pre>
+          <form class="split-send" id="split-send-form">
+            <input type="text" id="split-send-input" placeholder="Send to pane…" autocomplete="off" spellcheck={false} />
+            <div class="split-send-row">
+              <button type="button" class="btn btn-key" data-split-key="Enter" title="Enter">Enter</button>
+              <button type="button" class="btn btn-key" data-split-key="Escape" title="Escape">Esc</button>
+              <button type="button" class="btn btn-key" data-split-key="C-c" title="Ctrl+C">Ctrl+C</button>
+              <button type="submit" class="btn btn-primary">send</button>
+            </div>
+          </form>
+        </aside>
 
         {snap.orphans.length > 0 && (
           <details class="orphans">
@@ -502,6 +604,7 @@ const MODE_KEYS: { label: string; key: string; title: string }[] = [
 ];
 
 const NAV_KEYS: { label: string; key: string; title: string }[] = [
+  { label: "Enter", key: "Enter", title: "Enter — approve prompts, submit input" },
   { label: "↑", key: "Up", title: "Up arrow" },
   { label: "↓", key: "Down", title: "Down arrow" },
   { label: "←", key: "Left", title: "Left arrow" },
@@ -512,14 +615,14 @@ const NAV_KEYS: { label: string; key: string; title: string }[] = [
   { label: "End", key: "End", title: "End" },
 ];
 
-export function PanePage({ t, output }: { t: Tentacle; output: string }) {
+export function PanePage({ t, output, instance }: { t: Tentacle; output: string; instance?: string }) {
   const accent = colorFor(t.color);
   return (
     <Layout title={`@${t.name} · Octopus`}>
       <header class="app-header">
         <div class="app-header-inner">
           <div class="brand">
-            <a href="/" class="brand-back" aria-label="back">
+            <a href={instance ? `/?instance=${encodeURIComponent(instance)}` : "/"} class="brand-back" aria-label="back">
               ←
             </a>
             <span class="brand-glyph" aria-hidden="true">
@@ -530,6 +633,14 @@ export function PanePage({ t, output }: { t: Tentacle; output: string }) {
             </span>
             <span class="brand-team mono">{t.cwdShort}</span>
           </div>
+          <nav class="pane-nav" id="pane-nav" aria-label="arm navigation">
+            <a class="pane-nav-btn pane-nav-prev" id="nav-prev" href="#" aria-label="previous arm" hidden>
+              ← <span class="pane-nav-name" id="nav-prev-name"></span>
+            </a>
+            <a class="pane-nav-btn pane-nav-next" id="nav-next" href="#" aria-label="next arm" hidden>
+              <span class="pane-nav-name" id="nav-next-name"></span> →
+            </a>
+          </nav>
           <div class="meta">
             <StatusDot status={t.status} />
             <span class="dim mono">{t.livePaneId ?? "dead"}</span>
@@ -548,47 +659,54 @@ export function PanePage({ t, output }: { t: Tentacle; output: string }) {
             autocomplete="off"
             spellcheck={false}
           />
-          <div class="control-row" aria-label="mode keys">
-            <span class="control-label">modes</span>
-            {MODE_KEYS.map((k) => (
-              <button
-                type="button"
-                class={`btn btn-key${k.key === "BTab" ? " btn-key-accent" : ""}`}
-                data-send-key={k.key}
-                title={k.title}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-          <div class="control-row" aria-label="navigation keys">
-            <span class="control-label">nav</span>
-            {NAV_KEYS.map((k) => (
-              <button
-                type="button"
-                class="btn btn-key"
-                data-send-key={k.key}
-                title={k.title}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-          <div class="quick">
-            <span class="control-label">slash</span>
-            <button type="button" class="btn btn-ghost" data-send="/remote-control">
-              /remote-control
-            </button>
-            <button type="button" class="btn btn-ghost" data-send="/compact">
-              /compact
-            </button>
-            <button type="button" class="btn btn-ghost" data-send="/status">
-              /status
-            </button>
+          <div class="send-actions">
             <button type="submit" class="btn btn-primary">
               send
             </button>
           </div>
+          <details class="controls-toggle" id="controls-toggle">
+            <summary class="controls-summary">keys &amp; controls</summary>
+            <div class="controls-body">
+              <div class="control-row" aria-label="mode keys">
+                <span class="control-label">modes</span>
+                {MODE_KEYS.map((k) => (
+                  <button
+                    type="button"
+                    class={`btn btn-key${k.key === "BTab" ? " btn-key-accent" : ""}`}
+                    data-send-key={k.key}
+                    title={k.title}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+              <div class="control-row" aria-label="navigation keys">
+                <span class="control-label">nav</span>
+                {NAV_KEYS.map((k) => (
+                  <button
+                    type="button"
+                    class="btn btn-key"
+                    data-send-key={k.key}
+                    title={k.title}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+              <div class="quick">
+                <span class="control-label">slash</span>
+                <button type="button" class="btn btn-ghost" data-send="/remote-control">
+                  /remote-control
+                </button>
+                <button type="button" class="btn btn-ghost" data-send="/compact">
+                  /compact
+                </button>
+                <button type="button" class="btn btn-ghost" data-send="/status">
+                  /status
+                </button>
+              </div>
+            </div>
+          </details>
         </form>
       </main>
       <script src="/pane.js" type="module" defer />

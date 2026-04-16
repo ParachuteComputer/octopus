@@ -6,17 +6,22 @@
 import { runHelp } from "./cli/help.ts";
 import { runInit } from "./cli/init.ts";
 import { runLaunch } from "./cli/launch.ts";
+import { runPod } from "./cli/pod.ts";
 import { runSend } from "./cli/send.ts";
 import { runSpawn } from "./cli/spawn.ts";
 import { runUi } from "./cli/ui.ts";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  if (!command || command === "--help" || command === "-h") {
     runHelp();
+    return;
+  }
+  if (command === "help") {
+    runHelp(rest[0]);
     return;
   }
   if (command === "version" || command === "--version" || command === "-v") {
@@ -34,6 +39,9 @@ async function main(): Promise<void> {
     case "ui":
       await runUi(rest);
       return;
+    case "pod":
+      await runPod(rest);
+      return;
     case "send":
       await runSend(rest);
       return;
@@ -42,7 +50,7 @@ async function main(): Promise<void> {
       return;
     default:
       console.error(`unknown command: ${command}`);
-      console.error(`run \`octopus help\` for usage.`);
+      console.error(`run \`parachute-octopus help\` for usage.`);
       process.exit(1);
   }
 }

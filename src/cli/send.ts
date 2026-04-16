@@ -20,7 +20,7 @@ export async function runSend(argv: string[]): Promise<void> {
 
   if (!tmuxHasSession(session)) {
     console.error(`error: no running tmux session "${session}".`);
-    console.error("Run `octopus launch` first.");
+    console.error("Run `parachute-octopus launch` first.");
     process.exit(1);
   }
 
