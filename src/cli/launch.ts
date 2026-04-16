@@ -12,11 +12,12 @@ import {
   probeOctopusUi,
   readPidFile,
 } from "../ui/pidfile.ts";
+import { findInstance } from "../pod.ts";
 
 const UI_WINDOW_NAME = "octopus-ui";
 
 export async function runLaunch(argv: string[]): Promise<void> {
-  const { flags } = parseFlags(argv, [
+  const { flags, positional } = parseFlags(argv, [
     "team",
     "cwd",
     "session",
@@ -26,8 +27,20 @@ export async function runLaunch(argv: string[]): Promise<void> {
     "ui-port",
     "ui-host",
   ]);
-  const team = (flags.team as string) ?? process.env.OCTOPUS_TEAM ?? "octopus";
-  const cwd = resolve((flags.cwd as string) ?? process.cwd());
+
+  // Resolve from pod registry if a positional name is given:
+  // `octopus launch parachute` → looks up scope + team from pod.json
+  const podName = positional[0];
+  const instance = podName ? findInstance(podName) : undefined;
+  if (podName && !instance && !flags.team && !flags.cwd) {
+    console.error(`error: "${podName}" is not in the pod registry and no --team/--cwd given.`);
+    console.error(`  octopus pod add ${podName} --scope <dir>    register it first`);
+    console.error(`  octopus launch --team ${podName} --cwd .    or use explicit flags`);
+    process.exit(1);
+  }
+
+  const team = (flags.team as string) ?? instance?.name ?? process.env.OCTOPUS_TEAM ?? "octopus";
+  const cwd = resolve((flags.cwd as string) ?? instance?.scope ?? process.cwd());
   const session = (flags.session as string) ?? team;
   const model = (flags.model as string) ?? "";
   // Default: pass --dangerously-skip-permissions so the team-lead can dispatch

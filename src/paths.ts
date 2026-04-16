@@ -14,8 +14,12 @@ import { fileURLToPath } from "node:url";
  * Returns the first path that exists, or the home-dir path as the last-resort
  * default. Callers that need to fail loudly should call requireTeamConfig().
  */
-export function resolveTeamConfigPath(team: string, override?: string): string {
+export function resolveTeamConfigPath(team: string, override?: string, scopeDir?: string): string {
   if (override && override.trim()) return resolve(override);
+  if (scopeDir) {
+    const scoped = join(scopeDir, ".claude", "teams", team, "config.json");
+    if (existsSync(scoped)) return scoped;
+  }
   const projectLocal = join(process.cwd(), ".claude", "teams", team, "config.json");
   if (existsSync(projectLocal)) return projectLocal;
   return join(homedir(), ".claude", "teams", team, "config.json");
