@@ -63,10 +63,11 @@ function tailHtml(t) {
   return `<pre class="tail tail-quiet" aria-label="recent output from ${escapeHtml(t.name)}"><span class="quiet-line">${msg}</span></pre>`;
 }
 
-function renderCard(t) {
+function renderCard(t, compact) {
   const accent = colorFor(t.color);
   const classes = ["card", `card-${t.status}`];
   if (t.stale) classes.push("card-stale");
+  if (compact) classes.push("card-compact");
 
   return `
 <article class="${classes.join(" ")}" data-name="${escapeHtml(t.name)}" data-cwd="${escapeHtml(t.cwdShort)}" data-status="${t.status}" style="--tentacle: ${accent};">
@@ -95,28 +96,26 @@ function renderCard(t) {
 function renderHero(t) {
   const accent = colorFor(t.color) || "#7AB09D";
   const tailContent = t.lastTail && t.lastTail.length
-    ? escapeHtml(t.lastTail.slice(-20).join("\n"))
+    ? escapeHtml(t.lastTail.slice(-12).join("\n"))
     : `<span class="quiet-line">quiet for a moment</span>`;
   return `
-<div class="hero-head">
-  <div class="hero-glyph" aria-hidden="true">${OCTOPUS_SVG}</div>
-  <div class="hero-titles">
-    <div class="hero-row">
-      <span class="status-dot status-${t.status}" aria-label="${t.status}"></span>
-      <h2 class="hero-name">${escapeHtml(t.name)}</h2>
-      <span class="pill pill-team-lead">team-lead</span>
-    </div>
-    <div class="hero-sub">
-      <span class="mono dim" title="${escapeHtml(t.cwd)}">${escapeHtml(t.cwdShort || "—")}</span>
-      <span class="hero-dot">·</span>
-      <span class="mono dim">pane ${t.livePaneId ? escapeHtml(t.livePaneId) : "—"}</span>
-      <span class="hero-dot">·</span>
-      <span class="age" data-age="${t.lastActivityMs ?? ""}">${formatAge(t.lastActivityMs)}</span>
-    </div>
+<div class="hero-glyph" aria-hidden="true">${OCTOPUS_SVG}</div>
+<div class="hero-titles">
+  <div class="hero-row">
+    <span class="status-dot status-${t.status}" aria-label="${t.status}"></span>
+    <h2 class="hero-name">${escapeHtml(t.name)}</h2>
+    <span class="pill pill-team-lead">team-lead</span>
   </div>
-  <a class="btn btn-primary hero-open" href="/pane/${encodeURIComponent(t.name)}">open</a>
+  <div class="hero-sub">
+    <span class="mono dim" title="${escapeHtml(t.cwd)}">${escapeHtml(t.cwdShort || "—")}</span>
+    <span class="hero-dot">·</span>
+    <span class="mono dim">pane ${t.livePaneId ? escapeHtml(t.livePaneId) : "—"}</span>
+    <span class="hero-dot">·</span>
+    <span class="age" data-age="${t.lastActivityMs ?? ""}">${formatAge(t.lastActivityMs)}</span>
+  </div>
 </div>
-<pre class="hero-tail" aria-label="recent output from ${escapeHtml(t.name)}">${tailContent}</pre>`;
+<pre class="hero-tail" aria-label="recent output from ${escapeHtml(t.name)}">${tailContent}</pre>
+<a class="btn btn-primary hero-open" href="/pane/${encodeURIComponent(t.name)}">open</a>`;
 }
 
 // Keep in sync with src/render.tsx OctopusGlyph.
@@ -172,6 +171,7 @@ function cssEscape(s) {
 function applyState(snap) {
   const teamLead = snap.tentacles.find((t) => t.agentType === "team-lead");
   const others = snap.tentacles.filter((t) => t.agentType !== "team-lead");
+  const compact = others.length >= 6;
 
   // Header pill counts
   const alive = snap.tentacles.filter((t) => t.status !== "dead").length;
@@ -204,7 +204,7 @@ function applyState(snap) {
     const sig = signature(t);
     const el = existing.get(name);
     if (el && el.dataset.sig === sig) continue;
-    template.innerHTML = renderCard(t);
+    template.innerHTML = renderCard(t, compact);
     const fresh = template.firstElementChild;
     fresh.dataset.sig = sig;
     if (el) {

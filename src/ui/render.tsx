@@ -304,11 +304,11 @@ function TailRegion({ t }: { t: Tentacle }) {
   );
 }
 
-function Card({ t }: { t: Tentacle }) {
+function Card({ t, compact }: { t: Tentacle; compact?: boolean }) {
   const accent = colorFor(t.color);
   return (
     <article
-      class={`card card-${t.status}${t.stale ? " card-stale" : ""}`}
+      class={`card card-${t.status}${t.stale ? " card-stale" : ""}${compact ? " card-compact" : ""}`}
       data-name={t.name}
       data-cwd={t.cwdShort}
       data-status={t.status}
@@ -374,10 +374,10 @@ function Card({ t }: { t: Tentacle }) {
   );
 }
 
-// Hero card for the team-lead row. Same data, more breathing room.
+// Hero card — horizontal banner: glyph | titles | tail | open button.
 function HeroCard({ t }: { t: Tentacle }) {
   const accent = colorFor(t.color) || "#7AB09D";
-  const tail = t.lastTail.length === 0 ? null : t.lastTail.slice(-20).join("\n");
+  const tail = t.lastTail.length === 0 ? null : t.lastTail.slice(-12).join("\n");
   return (
     <article
       class={`hero hero-${t.status}`}
@@ -386,35 +386,33 @@ function HeroCard({ t }: { t: Tentacle }) {
       data-status={t.status}
       style={`--tentacle: ${accent};`}
     >
-      <div class="hero-head">
-        <div class="hero-glyph" aria-hidden="true">
-          <OctopusGlyph />
+      <div class="hero-glyph" aria-hidden="true">
+        <OctopusGlyph />
+      </div>
+      <div class="hero-titles">
+        <div class="hero-row">
+          <StatusDot status={t.status} />
+          <h2 class="hero-name">{t.name}</h2>
+          <span class="pill pill-team-lead">team-lead</span>
         </div>
-        <div class="hero-titles">
-          <div class="hero-row">
-            <StatusDot status={t.status} />
-            <h2 class="hero-name">{t.name}</h2>
-            <span class="pill pill-team-lead">team-lead</span>
-          </div>
-          <div class="hero-sub">
-            <span class="mono dim" title={t.cwd}>
-              {t.cwdShort || "—"}
-            </span>
-            <span class="hero-dot">·</span>
-            <span class="mono dim">pane {t.livePaneId ?? "—"}</span>
-            <span class="hero-dot">·</span>
-            <span class="age" data-age={t.lastActivityMs ?? ""}>
-              {formatAge(t.lastActivityMs)}
-            </span>
-          </div>
+        <div class="hero-sub">
+          <span class="mono dim" title={t.cwd}>
+            {t.cwdShort || "—"}
+          </span>
+          <span class="hero-dot">·</span>
+          <span class="mono dim">pane {t.livePaneId ?? "—"}</span>
+          <span class="hero-dot">·</span>
+          <span class="age" data-age={t.lastActivityMs ?? ""}>
+            {formatAge(t.lastActivityMs)}
+          </span>
         </div>
-        <a class="btn btn-primary hero-open" href={`/pane/${encodeURIComponent(t.name)}`}>
-          open
-        </a>
       </div>
       <pre class="hero-tail" aria-label={`recent output from ${t.name}`}>
         {tail ?? <span class="quiet-line">quiet for a moment</span>}
       </pre>
+      <a class="btn btn-primary hero-open" href={`/pane/${encodeURIComponent(t.name)}`}>
+        open
+      </a>
     </article>
   );
 }
@@ -512,6 +510,7 @@ export function DashboardPage({ snap, podOctopi, activeInstance }: { snap: Snaps
   const teamLead = snap.tentacles.find((t) => t.agentType === "team-lead");
   const others = snap.tentacles.filter((t) => t.agentType !== "team-lead");
   const mentioned = teamLead?.recentlyMentioned ?? [];
+  const compact = others.length >= 6;
   return (
     <Layout title={activeInstance ? `Octopus / ${activeInstance}` : "Octopus"}>
       <Header snap={snap} />
@@ -538,7 +537,7 @@ export function DashboardPage({ snap, podOctopi, activeInstance }: { snap: Snaps
         ) : (
           <section class="grid" id="grid">
             {others.map((t) => (
-              <Card t={t} />
+              <Card t={t} compact={compact} />
             ))}
           </section>
         )}
