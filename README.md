@@ -31,12 +31,17 @@ From the root of any repo:
 
 ```bash
 octopus init        # writes .claude/commands + agents + octopus.md
-octopus launch      # starts tmux + Claude Code as the team-lead
-octopus ui          # opens the web dashboard at http://127.0.0.1:6061
+octopus launch      # starts tmux + Claude Code as the team-lead AND the UI
+                    # (one tmux session owns both — no orphan processes)
 ```
 
-The team-lead is now ready. Type `/spawn <name> <cwd> <prompt>` in its pane
-to spin up a tentacle, or use the **🐙 spawn** button in the dashboard.
+The team-lead is now ready. The UI is at `http://127.0.0.1:6061` (or your
+Tailscale address — see *UI lifecycle* below). Type `/spawn <name> <cwd>
+<prompt>` in the team-lead pane, or use the **🐙 spawn** button in the
+dashboard.
+
+> Need just the UI? `octopus ui` runs it standalone (daemonized).
+> Need to stop it? `octopus ui stop`. See *UI lifecycle* below.
 
 ## How it works
 
@@ -81,20 +86,55 @@ Bootstrap the current repo. Writes:
 Idempotent: re-running overwrites the four template files but preserves the
 rest of `CLAUDE.md`. Default team name is `octopus`.
 
-### `octopus launch [--team <name>] [--cwd <path>] [--session <name>] [--model <id>]`
+### `octopus launch [--team <name>] [--cwd <path>] [--session <name>] [--model <id>] [--no-ui] [--ui-port <n>] [--ui-host <addr>]`
 
-Start (or attach to) a tmux session running Claude Code as the team-lead.
+Start (or attach to) a tmux session running Claude Code as the team-lead, and
+**spawn the web UI as a managed window in the same tmux session**. One tmux
+session owns both — kill the session, both die. No orphan processes.
+
 Defaults: team `octopus`, cwd `$PWD`, session name = team name. Inside an
-existing tmux session it does `switch-client` instead of `attach`.
+existing tmux session it does `switch-client` instead of `attach`. Pass
+`--no-ui` to skip the UI window (useful in dev when you want to run the UI
+yourself with `bun --hot`).
 
-### `octopus ui [--team <name>] [--port 6061] [--host 127.0.0.1] [--team-config <path>]`
+### `octopus ui [--team <name>] [--port 6061] [--host 0.0.0.0] [--team-config <path>] [--foreground]`
 
-Start the web dashboard. Loopback only by default. Opt into LAN/Tailscale
-exposure with `--host 0.0.0.0`. The team config path is resolved from:
+Standalone UI process. **Daemonizes by default** — the server keeps running
+after your shell closes; logs go to `~/.local/state/octopus/ui.log`.
+
+Idempotent: if a UI is already running (whether spawned by `octopus launch`,
+a previous `octopus ui`, or anywhere else), prints the URL and exits 0
+instead of crashing on `EADDRINUSE`.
+
+Pass `--foreground` to run attached to your terminal (used by `octopus
+launch`'s tmux window, and handy for dev — `bun --hot src/cli.ts ui --foreground`).
+
+The default host is **`0.0.0.0`** (changed in 0.2.0). The dashboard shells
+`tmux send-keys` into every pane on the box — auth lives at the **network**
+layer, not the app layer. Bind only to interfaces gated by Tailscale or a
+firewall. Use `--host 127.0.0.1` to restrict to loopback.
+
+The team config path is resolved from:
 
 1. `--team-config` flag (or `OCTOPUS_TEAM_CONFIG` env)
 2. `<cwd>/.claude/teams/<team>/config.json` (project-local)
 3. `~/.claude/teams/<team>/config.json` (home-dir, Claude Code default)
+
+### `octopus ui stop [--timeout 3000]`
+
+SIGTERM the running UI (looked up via PID file), wait for clean exit, remove
+the PID file. Refuses to kill the recorded PID if it now belongs to a
+non-octopus process. Cleans up stale PID files automatically.
+
+### `octopus ui restart [<ui flags>]`
+
+Stop, then start with the given flags.
+
+### `octopus ui status`
+
+Print PID, URL, mode (`tmux` / `daemon` / `foreground`), and the PID-file
+path. Useful when you want to know whether *anything* is running before
+launching another UI.
 
 ### `octopus send <text...> [--session <name>]`
 
@@ -135,12 +175,30 @@ gives a readable dashboard with no JS.
 | `POST` | `/api/shutdown/:name`   | Send `/exit` to a tentacle |
 | `GET`  | `/api/spawn-targets`    | Datalist suggestions for the spawn modal |
 
+## UI lifecycle
+
+There are three ways the UI can be running, and they're distinguishable via
+`octopus ui status`:
+
+| Mode | How it got there | Stopped by |
+| --- | --- | --- |
+| `tmux` | Spawned by `octopus launch` as a window in its tmux session | Killing the tmux session (or the window) |
+| `daemon` | `octopus ui` standalone (default) | `octopus ui stop` |
+| `foreground` | `octopus ui --foreground` (dev mode, or the body of the tmux window) | Ctrl-C in its terminal |
+
+Only one UI runs at a time on a given port. The PID file at
+`${XDG_STATE_HOME:-~/.local/state}/octopus/ui.pid` is the source of truth;
+combined with a `/api/health` self-identification endpoint it lets the CLI
+distinguish "another octopus UI" from "a foreign process holding the port"
+and react accordingly (no-op vs. error).
+
 ## Auth
 
 **None at the app layer.** This server shells `tmux send-keys` into every
 pane on the box — it is *intentionally* gated at the network layer, not the
-app layer. Bind it to localhost or a Tailscale-only interface and rely on
-network ACLs. Do not expose it on the open internet.
+app layer. The default bind host is `0.0.0.0`, which assumes you're on a
+Tailscale-only or firewalled interface. If you're not, pass `--host
+127.0.0.1`. Do not expose it on the open internet.
 
 ## Where octopus sits in the Parachute family
 
