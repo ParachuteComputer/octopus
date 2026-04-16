@@ -33,7 +33,7 @@ describe("octopus init", () => {
     const claudeMd = readFileSync(join(tmpRoot, "CLAUDE.md"), "utf8");
     expect(claudeMd).toContain("<!-- octopus:start -->");
     expect(claudeMd).toContain("<!-- octopus:end -->");
-    expect(claudeMd).toContain("Octopus team layer");
+    expect(claudeMd).toContain("# Octopus");
   });
 
   test("updates fenced section in place on re-run", async () => {
@@ -66,7 +66,7 @@ describe("octopus init", () => {
     const claudeMd = readFileSync(join(tmpRoot, "CLAUDE.md"), "utf8");
     expect(claudeMd).not.toContain("@.claude/octopus.md");
     expect(claudeMd).toContain("<!-- octopus:start -->");
-    expect(claudeMd).toContain("Octopus team layer");
+    expect(claudeMd).toContain("# Octopus");
     // Legacy file removed
     expect(existsSync(join(tmpRoot, ".claude/octopus.md"))).toBe(false);
   });
