@@ -1,9 +1,9 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from "hono";
-import { serveStatic } from "hono/bun";
+import { join as joinPath } from "node:path";
 import { streamSSE } from "hono/streaming";
 import { readdir, stat } from "node:fs/promises";
-import { join, resolve as resolvePath } from "node:path";
+import { resolve as resolvePath } from "node:path";
 import { buildSnapshot, loadConfig, setConfigPath, snapshotForTentacle } from "./state.ts";
 import { capturePane, isPrimarySessionPane, isValidKey, listPanes, sendKey, sendKeys } from "./tmux.ts";
 import { DashboardPage, PanePage } from "./render.tsx";
@@ -308,9 +308,16 @@ app.get("/favicon.svg", (c) => {
   );
 });
 
-app.get("/styles.css", serveStatic({ path: join(PUBLIC_DIR, "styles.css") }));
-app.get("/app.js", serveStatic({ path: join(PUBLIC_DIR, "app.js") }));
-app.get("/pane.js", serveStatic({ path: join(PUBLIC_DIR, "pane.js") }));
+function serveFile(name: string, ct: string) {
+  const abs = joinPath(PUBLIC_DIR, name);
+  return (c: any) => {
+    c.header("Content-Type", ct);
+    return c.body(Bun.file(abs));
+  };
+}
+app.get("/styles.css", serveFile("styles.css", "text/css; charset=utf-8"));
+app.get("/app.js", serveFile("app.js", "text/javascript; charset=utf-8"));
+app.get("/pane.js", serveFile("pane.js", "text/javascript; charset=utf-8"));
 
 function renderError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
