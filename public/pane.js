@@ -73,9 +73,14 @@ async function postSend(body, successToast) {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = input.value;
-  if (!text.trim()) return;
   input.disabled = true;
-  const ok = await send(text, true);
+  let ok;
+  if (!text.trim()) {
+    // Empty submit = send bare Enter (approve prompts, confirm dialogs)
+    ok = await sendKey("Enter");
+  } else {
+    ok = await send(text, true);
+  }
   input.disabled = false;
   if (ok) input.value = "";
   input.focus();

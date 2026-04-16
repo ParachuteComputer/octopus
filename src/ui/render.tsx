@@ -581,6 +581,7 @@ const MODE_KEYS: { label: string; key: string; title: string }[] = [
 ];
 
 const NAV_KEYS: { label: string; key: string; title: string }[] = [
+  { label: "Enter", key: "Enter", title: "Enter — approve prompts, submit input" },
   { label: "↑", key: "Up", title: "Up arrow" },
   { label: "↓", key: "Down", title: "Down arrow" },
   { label: "←", key: "Left", title: "Left arrow" },
