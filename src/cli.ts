@@ -50,7 +50,7 @@ async function main(): Promise<void> {
       return;
     default:
       console.error(`unknown command: ${command}`);
-      console.error(`run \`octopus help\` for usage.`);
+      console.error(`run \`parachute-octopus help\` for usage.`);
       process.exit(1);
   }
 }

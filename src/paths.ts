@@ -32,7 +32,7 @@ export function requireTeamConfig(team: string, override?: string): string {
       `No octopus team config found for team "${team}". Looked at:\n` +
         `  • ${join(process.cwd(), ".claude", "teams", team, "config.json")}\n` +
         `  • ${join(homedir(), ".claude", "teams", team, "config.json")}\n` +
-        `Run \`octopus init\` in this repo, then \`octopus launch\`.`,
+        `Run \`parachute-octopus init\` in this repo, then \`parachute-octopus launch\`.`,
     );
   }
   return path;

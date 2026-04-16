@@ -173,7 +173,7 @@ async function ensureUiWindow(opts: EnsureUiOpts): Promise<void> {
   const code = tmuxNewWindow(opts.session, UI_WINDOW_NAME, opts.cwd, uiCmd);
   if (code !== 0) {
     console.error(
-      `warning: failed to start UI window (tmux exited ${code}). You can start it manually with \`octopus ui\`.`,
+      `warning: failed to start UI window (tmux exited ${code}). You can start it manually with \`parachute-octopus ui\`.`,
     );
     return;
   }

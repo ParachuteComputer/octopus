@@ -176,7 +176,7 @@ export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
   if (!primarySessionCapture) {
     // Fallback: untagged Claude Code pane (not a tentacle)
     primarySessionCapture = captures.find(
-      (c) => !c.name && !tentacleNames.has(c.name) && isClaudeCodePane(c.content),
+      (c) => !c.name && isClaudeCodePane(c.content),
     );
   }
   if (primarySessionCapture) {

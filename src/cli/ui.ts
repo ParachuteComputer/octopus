@@ -106,7 +106,7 @@ async function alreadyRunning(opts: UiOptions): Promise<UiPidRecord | null> {
       `warning: PID ${existing.pid} is alive but not responding on ${existing.host}:${existing.port}.`,
     );
     console.error(
-      `         the PID file may be stale (different process now); run \`octopus ui stop\` to clear it.`,
+      `         the PID file may be stale (different process now); run \`parachute-octopus ui stop\` to clear it.`,
     );
   } else if (existing) {
     removePidFile(); // stale
