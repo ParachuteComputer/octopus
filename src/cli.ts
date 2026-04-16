@@ -15,8 +15,12 @@ const VERSION = "0.2.0";
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  if (!command || command === "--help" || command === "-h") {
     runHelp();
+    return;
+  }
+  if (command === "help") {
+    runHelp(rest[0]);
     return;
   }
   if (command === "version" || command === "--version" || command === "-v") {
