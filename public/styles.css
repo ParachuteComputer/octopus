@@ -996,6 +996,205 @@ a {
   padding-top: 10px;
 }
 
+/* Split-pane dashboard ====================================== */
+
+.dashboard-split {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  grid-template-rows: auto 1fr;
+  gap: 0 16px;
+  padding-bottom: 24px;
+  max-height: calc(100vh - 60px);
+}
+
+/* Hero and orphans span both columns in split mode */
+.dashboard-split .hero-section,
+.dashboard-split .orphans {
+  grid-column: 1 / -1;
+}
+
+.dashboard-split .grid {
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  padding-right: 4px;
+}
+
+.split-panel {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 220px);
+  position: sticky;
+  top: 80px;
+}
+
+.dashboard-split .split-panel {
+  display: flex;
+}
+
+.split-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.split-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.split-panel-name {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.split-panel-meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.split-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.split-close {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.split-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.split-scrollback {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  background: var(--bg-tail);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--tentacle, var(--forest));
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0;
+  flex: 1;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  font-variant-numeric: tabular-nums;
+  min-height: 200px;
+}
+
+.split-scrollback::-webkit-scrollbar {
+  width: 8px;
+}
+
+.split-scrollback::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+.split-send {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.split-send:focus-within {
+  border-color: var(--border-strong);
+}
+
+.split-send input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 6px 4px;
+  outline: none;
+}
+
+.split-send input::placeholder {
+  color: var(--text-muted);
+}
+
+.split-send-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Active card highlight in split mode */
+.card.card-active {
+  border-color: var(--turquoise);
+  background: var(--bg-elev);
+}
+
+/* In split mode, cards become clickable — remove the open button and
+   make the whole card the target */
+.dashboard-split .card {
+  cursor: pointer;
+}
+
+.dashboard-split .card-foot {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .dashboard-split {
+    display: block;
+  }
+  .split-panel {
+    display: none !important;
+  }
+  .dashboard-split .card-foot {
+    display: flex;
+  }
+  .dashboard-split .card {
+    cursor: default;
+  }
+}
+
 /* Feedback toast ============================================ */
 
 .toast {

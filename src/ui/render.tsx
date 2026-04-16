@@ -542,6 +542,30 @@ export function DashboardPage({ snap, podOctopi, activeInstance }: { snap: Snaps
           </section>
         )}
 
+        <aside class="split-panel" id="split-panel" hidden>
+          <div class="split-panel-head">
+            <div class="split-panel-title">
+              <span class="status-dot" id="split-status-dot" />
+              <span class="split-panel-name" id="split-name" />
+              <span class="split-panel-meta" id="split-meta" />
+            </div>
+            <div class="split-panel-actions">
+              <a class="btn btn-ghost" id="split-expand" href="#" title="Open full pane view">expand</a>
+              <button type="button" class="split-close" id="split-close" title="Close panel (Esc)" aria-label="close panel">×</button>
+            </div>
+          </div>
+          <pre class="split-scrollback" id="split-scrollback">(loading…)</pre>
+          <form class="split-send" id="split-send-form">
+            <input type="text" id="split-send-input" placeholder="Send to pane…" autocomplete="off" spellcheck={false} />
+            <div class="split-send-row">
+              <button type="button" class="btn btn-key" data-split-key="Enter" title="Enter">Enter</button>
+              <button type="button" class="btn btn-key" data-split-key="Escape" title="Escape">Esc</button>
+              <button type="button" class="btn btn-key" data-split-key="C-c" title="Ctrl+C">Ctrl+C</button>
+              <button type="submit" class="btn btn-primary">send</button>
+            </div>
+          </form>
+        </aside>
+
         {snap.orphans.length > 0 && (
           <details class="orphans">
             <summary>
