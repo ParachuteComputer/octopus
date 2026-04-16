@@ -1,24 +1,29 @@
 export function runHelp(command?: string): void {
   if (command === "launch") return helpLaunch();
   if (command === "ui") return helpUi();
+  if (command === "pod") return helpPod();
   if (command === "env") return helpEnv();
   console.log(`octopus — team layer for Claude Code
 
 commands:
-  launch          start tmux session with team-lead + web dashboard
+  launch [name]   start tmux session with team-lead + web dashboard
   ui              start / stop / restart the web dashboard
+  pod             manage multiple octopus instances
   send <text>     send keystrokes to the team-lead pane
 
   init            bootstrap octopus in the current repo
   spawn <n> <d>   type /spawn into the team-lead pane
-  help <command>  detailed help (launch, ui, env)
+  help <command>  detailed help (launch, ui, pod, env)
 
 https://github.com/ParachuteComputer/octopus
 `);
 }
 
 function helpLaunch(): void {
-  console.log(`octopus launch — start tmux + claude code as team-lead
+  console.log(`octopus launch [<name>] — start tmux + claude code as team-lead
+
+  octopus launch parachute    look up scope + team from pod registry
+  octopus launch              use --team/--cwd or defaults
 
   --team <name>           team name (default: octopus)
   --cwd <path>            working directory (default: $PWD)
@@ -46,6 +51,21 @@ flags:
   --team-config <path>    explicit config.json path
   --foreground            run attached to terminal (don't daemonize)
   --poll-ms <n>           snapshot interval in ms (default: 2000)
+`);
+}
+
+function helpPod(): void {
+  console.log(`octopus pod — manage multiple octopus instances
+
+  octopus pod                           list all octopi + running status
+  octopus pod add <name> [--scope dir]  register an octopus (default scope: cwd)
+  octopus pod remove <name>             unregister (files left untouched)
+
+Once registered, launch by name:
+  octopus launch parachute              resolves scope + team from the pod
+
+Pod file: ~/.config/octopus/pod.json
+UI shows tabs when the pod has 2+ octopi.
 `);
 }
 
