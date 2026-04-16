@@ -819,12 +819,12 @@ a {
 
 .pane-view {
   --tentacle: var(--forest);
-  max-width: 2000px;
-  margin: 0 auto;
-  padding: 24px 28px 160px;
+  max-width: none;
+  margin: 0;
+  padding: 16px 20px 160px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .scrollback {
@@ -838,7 +838,7 @@ a {
   border-radius: var(--radius);
   padding: 18px 22px;
   margin: 0;
-  max-height: calc(100vh - 280px);
+  max-height: calc(100vh - 200px);
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
