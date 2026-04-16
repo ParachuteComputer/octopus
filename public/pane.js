@@ -98,12 +98,77 @@ document.querySelectorAll("[data-send-key]").forEach((btn) => {
   });
 });
 
+// ── Quick-nav between arms ──────────────────────────────────
+
+const navPrev = document.getElementById("nav-prev");
+const navNext = document.getElementById("nav-next");
+const navPrevName = document.getElementById("nav-prev-name");
+const navNextName = document.getElementById("nav-next-name");
+
+let prevHref = null;
+let nextHref = null;
+
+// Preserve ?instance= param for pod-aware navigation
+const instanceParam = new URLSearchParams(window.location.search).get("instance");
+function paneUrl(armName) {
+  const base = `/pane/${encodeURIComponent(armName)}`;
+  return instanceParam ? `${base}?instance=${encodeURIComponent(instanceParam)}` : base;
+}
+
+async function loadRoster() {
+  try {
+    const url = instanceParam ? `/api/state?instance=${encodeURIComponent(instanceParam)}` : "/api/state";
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const snap = await res.json();
+    const roster = snap.tentacles.map((t) => t.name);
+    const idx = roster.indexOf(name);
+    if (idx < 0) return;
+
+    if (idx > 0) {
+      const prev = roster[idx - 1];
+      prevHref = paneUrl(prev);
+      navPrev.href = prevHref;
+      navPrevName.textContent = prev;
+      navPrev.hidden = false;
+    }
+    if (idx < roster.length - 1) {
+      const next = roster[idx + 1];
+      nextHref = paneUrl(next);
+      navNext.href = nextHref;
+      navNextName.textContent = next;
+      navNext.hidden = false;
+    }
+  } catch (_) {
+    // silently ignore — nav just stays hidden
+  }
+}
+
+loadRoster();
+
+// ── Keyboard shortcuts ──────────────────────────────────────
+
 document.addEventListener("keydown", (e) => {
+  const focused = document.activeElement;
+  const inputFocused = focused === input || focused?.tagName === "INPUT" || focused?.tagName === "TEXTAREA";
+
   if (e.key === "Escape") {
-    if (document.activeElement === input) {
+    if (inputFocused) {
       input.blur();
     } else {
-      window.location.href = "/";
+      window.location.href = instanceParam ? `/?instance=${encodeURIComponent(instanceParam)}` : "/";
+    }
+    return;
+  }
+
+  // Arrow key navigation only when input is not focused
+  if (!inputFocused) {
+    if (e.key === "ArrowLeft" && prevHref) {
+      e.preventDefault();
+      window.location.href = prevHref;
+    } else if (e.key === "ArrowRight" && nextHref) {
+      e.preventDefault();
+      window.location.href = nextHref;
     }
   }
 });

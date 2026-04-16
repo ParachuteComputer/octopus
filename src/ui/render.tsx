@@ -609,6 +609,14 @@ export function PanePage({ t, output, instance }: { t: Tentacle; output: string;
             </span>
             <span class="brand-team mono">{t.cwdShort}</span>
           </div>
+          <nav class="pane-nav" id="pane-nav" aria-label="arm navigation">
+            <a class="pane-nav-btn pane-nav-prev" id="nav-prev" href="#" aria-label="previous arm" hidden>
+              ← <span class="pane-nav-name" id="nav-prev-name"></span>
+            </a>
+            <a class="pane-nav-btn pane-nav-next" id="nav-next" href="#" aria-label="next arm" hidden>
+              <span class="pane-nav-name" id="nav-next-name"></span> →
+            </a>
+          </nav>
           <div class="meta">
             <StatusDot status={t.status} />
             <span class="dim mono">{t.livePaneId ?? "dead"}</span>
@@ -627,47 +635,54 @@ export function PanePage({ t, output, instance }: { t: Tentacle; output: string;
             autocomplete="off"
             spellcheck={false}
           />
-          <div class="control-row" aria-label="mode keys">
-            <span class="control-label">modes</span>
-            {MODE_KEYS.map((k) => (
-              <button
-                type="button"
-                class={`btn btn-key${k.key === "BTab" ? " btn-key-accent" : ""}`}
-                data-send-key={k.key}
-                title={k.title}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-          <div class="control-row" aria-label="navigation keys">
-            <span class="control-label">nav</span>
-            {NAV_KEYS.map((k) => (
-              <button
-                type="button"
-                class="btn btn-key"
-                data-send-key={k.key}
-                title={k.title}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-          <div class="quick">
-            <span class="control-label">slash</span>
-            <button type="button" class="btn btn-ghost" data-send="/remote-control">
-              /remote-control
-            </button>
-            <button type="button" class="btn btn-ghost" data-send="/compact">
-              /compact
-            </button>
-            <button type="button" class="btn btn-ghost" data-send="/status">
-              /status
-            </button>
+          <div class="send-actions">
             <button type="submit" class="btn btn-primary">
               send
             </button>
           </div>
+          <details class="controls-toggle" id="controls-toggle">
+            <summary class="controls-summary">keys &amp; controls</summary>
+            <div class="controls-body">
+              <div class="control-row" aria-label="mode keys">
+                <span class="control-label">modes</span>
+                {MODE_KEYS.map((k) => (
+                  <button
+                    type="button"
+                    class={`btn btn-key${k.key === "BTab" ? " btn-key-accent" : ""}`}
+                    data-send-key={k.key}
+                    title={k.title}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+              <div class="control-row" aria-label="navigation keys">
+                <span class="control-label">nav</span>
+                {NAV_KEYS.map((k) => (
+                  <button
+                    type="button"
+                    class="btn btn-key"
+                    data-send-key={k.key}
+                    title={k.title}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+              <div class="quick">
+                <span class="control-label">slash</span>
+                <button type="button" class="btn btn-ghost" data-send="/remote-control">
+                  /remote-control
+                </button>
+                <button type="button" class="btn btn-ghost" data-send="/compact">
+                  /compact
+                </button>
+                <button type="button" class="btn btn-ghost" data-send="/status">
+                  /status
+                </button>
+              </div>
+            </div>
+          </details>
         </form>
       </main>
       <script src="/pane.js" type="module" defer />
