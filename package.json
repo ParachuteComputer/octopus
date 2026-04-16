@@ -1,6 +1,6 @@
 {
   "name": "@openparachute/octopus",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Team layer for Claude Code — spawn, observe, and coordinate tentacles (Claude Code teammates) in any repo.",
   "license": "AGPL-3.0-or-later",
   "type": "module",

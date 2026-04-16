@@ -10,7 +10,7 @@ import { runSend } from "./cli/send.ts";
 import { runSpawn } from "./cli/spawn.ts";
 import { runUi } from "./cli/ui.ts";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
