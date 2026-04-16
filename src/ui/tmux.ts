@@ -22,13 +22,16 @@ export interface LivePane {
   height: number;
 }
 
-export async function listPanes(): Promise<LivePane[]> {
-  const out = await run([
-    "list-panes",
-    "-a",
-    "-F",
-    "#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_width}\t#{pane_height}",
-  ]);
+export async function listPanes(sessionFilter?: string): Promise<LivePane[]> {
+  const args = sessionFilter
+    ? ["list-panes", "-t", sessionFilter, "-F", "#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_width}\t#{pane_height}"]
+    : ["list-panes", "-a", "-F", "#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_id}\t#{pane_width}\t#{pane_height}"];
+  let out: string;
+  try {
+    out = await run(args);
+  } catch {
+    return [];
+  }
   return out
     .trim()
     .split("\n")

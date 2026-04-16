@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import type { Snapshot, Tentacle } from "./state.ts";
+import type { PodStatus } from "../pod.ts";
 import { colorFor } from "./colors.ts";
 import { formatAge, formatJoinedAt } from "./format.ts";
 
@@ -430,13 +431,91 @@ function EmptyState() {
   );
 }
 
-export function DashboardPage({ snap }: { snap: Snapshot }) {
+function PodTabs({ octopi, active }: { octopi?: PodStatus[]; active?: string }) {
+  if (!octopi || octopi.length <= 1) return null;
+  return (
+    <nav class="pod-tabs" aria-label="octopus instances">
+      {octopi.map((o) => (
+        <a
+          class={`pod-tab${o.name === active ? " pod-tab-active" : ""}${o.running ? "" : " pod-tab-stopped"}`}
+          href={`/?instance=${encodeURIComponent(o.name)}`}
+          title={o.description || o.scope}
+        >
+          <span class={`pod-dot${o.running ? " pod-dot-running" : ""}`} />
+          {o.name}
+        </a>
+      ))}
+      <a class="pod-tab pod-tab-overview" href="/" title="Pod overview">
+        all
+      </a>
+    </nav>
+  );
+}
+
+export function PodOverviewPage({ octopi }: { octopi: PodStatus[] }) {
+  return (
+    <Layout title="Octopus Pod">
+      <header class="app-header">
+        <div class="app-header-inner">
+          <div class="brand">
+            <span class="brand-glyph" aria-hidden="true">
+              <OctopusGlyph />
+            </span>
+            <span class="brand-name">Octopus</span>
+            <span class="brand-team">/ pod</span>
+          </div>
+          <div class="meta">
+            <span class="stat-pill" data-stat="octopi">
+              <span class="stat-value">{octopi.length}</span>
+              <span class="stat-label">octop{octopi.length === 1 ? "us" : "i"}</span>
+            </span>
+            <span class="stat-pill" data-stat="running">
+              <span class="stat-value">{octopi.filter((o) => o.running).length}</span>
+              <span class="stat-label">running</span>
+            </span>
+          </div>
+        </div>
+      </header>
+      <main class="dashboard">
+        <section class="pod-grid">
+          {octopi.map((o) => (
+            <a class={`pod-card${o.running ? " pod-card-running" : ""}`} href={`/?instance=${encodeURIComponent(o.name)}`}>
+              <div class="pod-card-head">
+                <span class={`pod-dot${o.running ? " pod-dot-running" : ""}`} />
+                <h2>{o.name}</h2>
+              </div>
+              <dl class="pod-card-facts">
+                <div>
+                  <dt>scope</dt>
+                  <dd class="mono">{o.scope.replace(/^\/Users\/[^/]+/, "~")}</dd>
+                </div>
+                <div>
+                  <dt>status</dt>
+                  <dd>{o.running ? "running" : "stopped"}</dd>
+                </div>
+                {o.description && (
+                  <div>
+                    <dt>about</dt>
+                    <dd>{o.description}</dd>
+                  </div>
+                )}
+              </dl>
+            </a>
+          ))}
+        </section>
+      </main>
+    </Layout>
+  );
+}
+
+export function DashboardPage({ snap, podOctopi, activeInstance }: { snap: Snapshot; podOctopi?: PodStatus[]; activeInstance?: string }) {
   const teamLead = snap.tentacles.find((t) => t.agentType === "team-lead");
   const others = snap.tentacles.filter((t) => t.agentType !== "team-lead");
   const mentioned = teamLead?.recentlyMentioned ?? [];
   return (
-    <Layout title="Octopus">
+    <Layout title={activeInstance ? `Octopus / ${activeInstance}` : "Octopus"}>
       <Header snap={snap} />
+      <PodTabs octopi={podOctopi} active={activeInstance} />
       <SearchRow />
       <main class="dashboard">
         {teamLead && (
@@ -512,14 +591,14 @@ const NAV_KEYS: { label: string; key: string; title: string }[] = [
   { label: "End", key: "End", title: "End" },
 ];
 
-export function PanePage({ t, output }: { t: Tentacle; output: string }) {
+export function PanePage({ t, output, instance }: { t: Tentacle; output: string; instance?: string }) {
   const accent = colorFor(t.color);
   return (
     <Layout title={`@${t.name} · Octopus`}>
       <header class="app-header">
         <div class="app-header-inner">
           <div class="brand">
-            <a href="/" class="brand-back" aria-label="back">
+            <a href={instance ? `/?instance=${encodeURIComponent(instance)}` : "/"} class="brand-back" aria-label="back">
               ←
             </a>
             <span class="brand-glyph" aria-hidden="true">

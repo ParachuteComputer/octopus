@@ -141,9 +141,14 @@ function stripStatusLines(lines: string[]): string[] {
   });
 }
 
-export async function buildSnapshot(configPath?: string): Promise<Snapshot> {
-  const config = await loadConfig(configPath);
-  const livePanes = await listPanes();
+export interface InstanceContext {
+  configPath?: string;
+  session?: string;
+}
+
+export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
+  const config = await loadConfig(ctx?.configPath);
+  const livePanes = await listPanes(ctx?.session);
 
   // First pass — capture every pane, extract tentacle name from content
   const captures = await Promise.all(
@@ -274,11 +279,11 @@ export function extractMentions(paneContent: string, knownNames: Set<string>): s
   return [...seen];
 }
 
-export async function snapshotForTentacle(name: string, lines = 200): Promise<{
+export async function snapshotForTentacle(name: string, lines = 200, ctx?: InstanceContext): Promise<{
   tentacle: Tentacle | null;
   output: string;
 }> {
-  const snap = await buildSnapshot();
+  const snap = await buildSnapshot(ctx);
   const t = snap.tentacles.find((x) => x.name === name);
   if (!t || !t.livePaneId) return { tentacle: t ?? null, output: "" };
   const output = await capturePane(t.livePaneId, lines);

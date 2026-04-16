@@ -1476,3 +1476,104 @@ a {
     transition: none;
   }
 }
+
+/* ── Pod tabs ────────────────────────────────────────── */
+
+.pod-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--pad);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pod-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font: 500 0.82rem/1 var(--ui);
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.pod-tab:hover { color: var(--text); }
+.pod-tab-active {
+  color: var(--forest);
+  border-bottom-color: var(--forest);
+}
+.pod-tab-stopped { opacity: 0.5; }
+.pod-tab-overview {
+  margin-left: auto;
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.7;
+}
+.pod-tab-overview:hover { opacity: 1; }
+
+.pod-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.pod-dot-running { background: var(--ok); }
+
+/* ── Pod overview grid ───────────────────────────────── */
+
+.pod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--pad);
+  padding: var(--pad);
+}
+.pod-card {
+  display: block;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--pad);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pod-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-lift);
+}
+.pod-card-running {
+  border-color: rgba(122, 176, 157, 0.3);
+}
+.pod-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.pod-card-head h2 {
+  font: 600 1.1rem/1.2 var(--display);
+  margin: 0;
+}
+.pod-card-facts {
+  display: grid;
+  gap: 4px;
+}
+.pod-card-facts > div {
+  display: flex;
+  gap: 8px;
+}
+.pod-card-facts dt {
+  font: 500 0.75rem/1.4 var(--ui);
+  color: var(--text-muted);
+  min-width: 50px;
+}
+.pod-card-facts dd {
+  font: 400 0.8rem/1.4 var(--ui);
+  color: var(--text-dim);
+  margin: 0;
+}

@@ -4,10 +4,12 @@ import { join as joinPath } from "node:path";
 import { streamSSE } from "hono/streaming";
 import { readdir, stat } from "node:fs/promises";
 import { resolve as resolvePath } from "node:path";
+import type { InstanceContext } from "./state.ts";
 import { buildSnapshot, loadConfig, setConfigPath, snapshotForTentacle } from "./state.ts";
 import { capturePane, isPrimarySessionPane, isValidKey, listPanes, sendKey, sendKeys } from "./tmux.ts";
-import { DashboardPage, PanePage } from "./render.tsx";
+import { DashboardPage, PanePage, PodOverviewPage } from "./render.tsx";
 import { resolvePublicDir, resolveSpawnTargetRoots, resolveTeamConfigPath } from "../paths.ts";
+import { loadPod, podStatus } from "../pod.ts";
 
 const PORT = Number(process.env.OCTOPUS_UI_PORT ?? 6061);
 // HOST/PORT here are fallbacks for direct invocation (`bun src/ui/server.tsx`).
@@ -27,12 +29,37 @@ const PUBLIC_DIR = resolvePublicDir();
 
 const app = new Hono();
 
+function resolveInstanceCtx(c: { req: { query: (k: string) => string | undefined } }): InstanceContext | undefined {
+  const instance = c.req.query("instance");
+  if (!instance) return undefined;
+  const pod = loadPod();
+  const entry = pod.octopi.find((o) => o.name === instance);
+  if (!entry) return undefined;
+  const configPath = resolveTeamConfigPath(entry.name, undefined, entry.scope);
+  return { configPath, session: entry.name };
+}
+
 app.get("/health", (c) => c.json({ ok: true, at: Date.now() }));
 
+app.get("/api/pod", (c) => {
+  const statuses = podStatus();
+  return c.json({ octopi: statuses });
+});
+
 app.get("/", async (c) => {
+  const instance = c.req.query("instance");
+  const pod = loadPod();
+
+  if (pod.octopi.length > 1 && !instance) {
+    const statuses = podStatus();
+    return c.html("<!doctype html>" + (<PodOverviewPage octopi={statuses} />).toString());
+  }
+
   try {
-    const snap = await buildSnapshot();
-    return c.html("<!doctype html>" + (<DashboardPage snap={snap} />).toString());
+    const ctx = resolveInstanceCtx(c);
+    const snap = await buildSnapshot(ctx);
+    const podOctopi = pod.octopi.length > 1 ? podStatus() : undefined;
+    return c.html("<!doctype html>" + (<DashboardPage snap={snap} podOctopi={podOctopi} activeInstance={instance} />).toString());
   } catch (err) {
     return c.html(renderError(err), 500);
   }
@@ -41,16 +68,19 @@ app.get("/", async (c) => {
 app.get("/pane/:name", async (c) => {
   const name = c.req.param("name");
   try {
-    const { tentacle, output } = await snapshotForTentacle(name, 300);
+    const ctx = resolveInstanceCtx(c);
+    const { tentacle, output } = await snapshotForTentacle(name, 300, ctx);
     if (!tentacle) return c.text(`Unknown tentacle: ${name}`, 404);
-    return c.html("<!doctype html>" + (<PanePage t={tentacle} output={output} />).toString());
+    const instance = c.req.query("instance");
+    return c.html("<!doctype html>" + (<PanePage t={tentacle} output={output} instance={instance} />).toString());
   } catch (err) {
     return c.html(renderError(err), 500);
   }
 });
 
 app.get("/api/state", async (c) => {
-  const snap = await buildSnapshot();
+  const ctx = resolveInstanceCtx(c);
+  const snap = await buildSnapshot(ctx);
   return c.json(snap);
 });
 
@@ -70,6 +100,7 @@ app.get("/api/pane/:name", async (c) => {
 });
 
 app.get("/api/stream", (c) => {
+  const ctx = resolveInstanceCtx(c);
   return streamSSE(c, async (stream) => {
     let alive = true;
     const onAbort = () => {
@@ -79,7 +110,7 @@ app.get("/api/stream", (c) => {
 
     while (alive) {
       try {
-        const snap = await buildSnapshot();
+        const snap = await buildSnapshot(ctx);
         await stream.writeSSE({ event: "state", data: JSON.stringify(snap) });
       } catch (err) {
         await stream.writeSSE({
@@ -94,6 +125,7 @@ app.get("/api/stream", (c) => {
 
 app.get("/api/stream/pane/:name", (c) => {
   const name = c.req.param("name");
+  const ctx = resolveInstanceCtx(c);
   return streamSSE(c, async (stream) => {
     let alive = true;
     c.req.raw.signal.addEventListener("abort", () => {
@@ -101,7 +133,7 @@ app.get("/api/stream/pane/:name", (c) => {
     });
     while (alive) {
       try {
-        const { tentacle, output } = await snapshotForTentacle(name, 300);
+        const { tentacle, output } = await snapshotForTentacle(name, 300, ctx);
         if (!tentacle) {
           await stream.writeSSE({ event: "gone", data: "{}" });
           break;
@@ -171,7 +203,7 @@ async function listDirs(root: string): Promise<string[]> {
     const entries = await readdir(root, { withFileTypes: true });
     return entries
       .filter((e) => e.isDirectory() && !e.name.startsWith("."))
-      .map((e) => join(root, e.name));
+      .map((e) => joinPath(root, e.name));
   } catch {
     return [];
   }
@@ -181,8 +213,8 @@ async function listDirs(root: string): Promise<string[]> {
 // signal the dashboard uses for its hero card. Returns null if the team-lead
 // pane can't be identified right now (e.g. the primary session isn't in
 // tmux or the signals are momentarily absent during a slash dispatch).
-async function findTeamLeadPane(): Promise<string | null> {
-  const panes = await listPanes();
+async function findTeamLeadPane(sessionFilter?: string): Promise<string | null> {
+  const panes = await listPanes(sessionFilter);
   for (const p of panes) {
     const content = await capturePane(p.paneId, 40);
     if (isPrimarySessionPane(content)) return p.paneId;
@@ -216,6 +248,8 @@ async function cloneRepo(url: string, dest: string): Promise<{ ok: true } | { ok
 
 app.post("/api/spawn", async (c) => {
   const body = await c.req.json().catch(() => null);
+  const instance = body?.instance as string | undefined;
+  const ctx = instance ? resolveInstanceCtx({ req: { query: () => instance } }) : undefined;
   const name = String(body?.name ?? "").trim();
   const cwdRaw = String(body?.cwd ?? "").trim();
   const promptRaw = String(body?.prompt ?? "").trim();
@@ -263,7 +297,7 @@ app.post("/api/spawn", async (c) => {
     // If config can't load, let the request proceed — the team-lead will surface it.
   }
 
-  const teamLeadPane = await findTeamLeadPane();
+  const teamLeadPane = await findTeamLeadPane(ctx?.session);
   if (!teamLeadPane) {
     return c.json({ error: "team-lead pane not found (primary session not detected)" }, 503);
   }
@@ -285,7 +319,8 @@ app.post("/api/spawn", async (c) => {
 
 app.post("/api/shutdown/:name", async (c) => {
   const name = c.req.param("name");
-  const { tentacle } = await snapshotForTentacle(name, 5).catch(() => ({ tentacle: null }));
+  const ctx = resolveInstanceCtx(c);
+  const { tentacle } = await snapshotForTentacle(name, 5, ctx).catch(() => ({ tentacle: null }));
   if (!tentacle) return c.json({ error: "unknown tentacle" }, 404);
   if (!tentacle.livePaneId) return c.json({ error: "tentacle has no live pane" }, 409);
 
