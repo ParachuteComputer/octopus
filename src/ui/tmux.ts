@@ -91,6 +91,34 @@ export function isValidKey(key: string): boolean {
   return ALLOWED_KEYS.has(key);
 }
 
+/**
+ * Move a pane to its own background window in the same session.
+ * Used to keep arm panes from shrinking the team-lead's terminal width.
+ * The arm keeps running — it just lives in a separate tmux window.
+ */
+export async function movePaneToBackgroundWindow(
+  paneId: string,
+  session: string,
+  windowName?: string,
+): Promise<boolean> {
+  try {
+    const args = ["break-pane", "-d", "-t", paneId, "-s", session];
+    await run(args);
+    // Optionally rename the new window
+    if (windowName) {
+      // break-pane creates a new window at the next index — find it by pane ID
+      const panes = await listPanes(session);
+      const moved = panes.find((p) => p.paneId === paneId);
+      if (moved) {
+        await run(["rename-window", "-t", `${session}:${moved.window}`, windowName]).catch(() => {});
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendKey(paneId: string, key: string): Promise<void> {
   if (!isValidKey(key)) {
     throw new Error(`unsupported key: ${key}`);

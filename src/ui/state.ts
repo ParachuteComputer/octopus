@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { capturePane, extractTentacleName, isClaudeCodePane, isPrimarySessionPane, listPanes } from "./tmux.ts";
+import { capturePane, extractTentacleName, isClaudeCodePane, isPrimarySessionPane, listPanes, movePaneToBackgroundWindow } from "./tmux.ts";
 
 export interface ConfigMember {
   agentId: string;
@@ -299,6 +299,24 @@ export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
       tentacleName: c.name,
       tail: stripStatusLines(c.content.split("\n")).slice(-4),
     }));
+
+  // Auto-organize: move arm panes that share a window with the team-lead
+  // to their own background windows. This keeps the team-lead pane at full
+  // terminal width so captured output is wider and more useful in the UI.
+  if (primarySessionCapture) {
+    const leadWindow = primarySessionCapture.pane.window;
+    const leadSession = primarySessionCapture.pane.session;
+    const armsInLeadWindow = captures.filter(
+      (c) =>
+        c.pane.paneId !== primarySessionCapture!.pane.paneId &&
+        c.pane.session === leadSession &&
+        c.pane.window === leadWindow &&
+        c.name, // only move tagged tentacle panes, not random shells
+    );
+    for (const arm of armsInLeadWindow) {
+      await movePaneToBackgroundWindow(arm.pane.paneId, leadSession, arm.name ?? undefined);
+    }
+  }
 
   return {
     generatedAt: now,
