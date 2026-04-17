@@ -26,7 +26,8 @@ Don't start work before doing this. Skipping it is the most common cause of wast
 
 ## How you report back
 
-When done (or stuck), SendMessage team-lead:
+Use the `/report` skill — it handles the team-lead delivery and the
+fallback path if your team context is missing. The default report shape:
 
 ```
 ### Status
@@ -40,3 +41,11 @@ Anything the team-lead should know.
 ```
 
 If stuck, say what you tried and what's blocking.
+
+## Your team context
+
+You were spawned by the team-lead via `/spawn`, which called
+`Agent(team_name: "<team>", ...)` — so you share the parent's team. That
+means `SendMessage`, the team-lead's inbox, and the dashboard all work out
+of the box. If any of those tools are missing from your surface, say so
+in your report so Aaron can fix the spawn path upstream.
