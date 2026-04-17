@@ -4,10 +4,11 @@ A team layer for [Claude Code](https://docs.claude.com/claude-code) — spawn,
 observe, and coordinate **tentacles** (Claude Code teammates) in any repo.
 
 One central session — the **team-lead** — holds the conversation. From there,
-focused tentacles get spawned into their own tmux panes and pinned to a
-working directory. Each tentacle reads its `CLAUDE.md`, does the focused
-work, self-reviews, and reports back. The team-lead stays at the
-big-picture level; depth happens in parallel.
+long-lasting tentacles get spawned into their own tmux panes, each pinned to
+a repo they steward over time. Each tentacle reads its `CLAUDE.md`,
+accumulates context for the repo it owns, and handles whatever work arises
+there. The team-lead stays at the big-picture level; depth happens in
+parallel.
 
 A small, dark web dashboard shows every live pane at a glance and lets you
 type into any of them from a browser or tablet over Tailscale.
@@ -43,6 +44,23 @@ dashboard.
 > Need just the UI? `octopus ui` runs it standalone (daemonized).
 > Need to stop it? `octopus ui stop`. See *UI lifecycle* below.
 
+## One tentacle per repo
+
+The default pattern: **one long-lasting tentacle per repo**, named after
+the repo (`vault`, `daily`, `octopus`, …). It's pinned to that working
+directory, accumulates context as it handles work there, and sits idle
+between tasks. When new work shows up for that repo, it goes to the same
+tentacle — context is already loaded.
+
+This keeps the roster small and comprehensible: the team-lead sees one arm
+per surface, not one arm per task. Task-scoped tentacles (`vault-polish`,
+`arm-rename`, …) proliferate fast and get hard to track.
+
+Before spawning, check the dashboard — if a tentacle already exists for
+that repo, send it the next task instead of spawning a new one. Spawning
+a task-scoped tentacle is still fine when it's genuinely one-off, but the
+repo-scoped pattern should be the default.
+
 ## How it works
 
 ```
@@ -55,9 +73,9 @@ dashboard.
                   │ Agent({ subagent_type: "tentacle", … })
                   ▼
 ┌──────────┐ ┌──────────┐ ┌──────────┐
-│ tentacle │ │ tentacle │ │ tentacle │   each in its own
-│ pane #1  │ │ pane #2  │ │ pane #N  │   tmux pane, pinned
-└──────────┘ └──────────┘ └──────────┘   to a working dir
+│  vault   │ │  daily   │ │  octopus │   one tentacle per repo,
+│ tentacle │ │ tentacle │ │ tentacle │   each in its own tmux pane,
+└──────────┘ └──────────┘ └──────────┘   pinned to its working dir
 
 ┌─────────────────────────────────────────────────────────┐
 │  octopus ui  →  http://127.0.0.1:6061                   │
