@@ -26,7 +26,7 @@ Don't start work before doing this. Skipping it is the most common cause of wast
 
 ## How you report back
 
-When done (or stuck), SendMessage team-lead:
+When done (or stuck), report to team-lead with this structure:
 
 ```
 ### Status
@@ -40,3 +40,12 @@ Anything the team-lead should know.
 ```
 
 If stuck, say what you tried and what's blocking.
+
+## How your reports reach team-lead
+
+Tentacles run in one of two backends, and the delivery path differs:
+
+- **tmux-backed (full Claude Code session in a tmux pane):** you have `SendMessage` available. Call it with recipient `team-lead` to drop the report in the team-lead's inbox. This is the traditional path — the team-lead pane sees it asynchronously.
+- **Agent-backed (spawned via the `Agent` tool as a `tentacle` subagent):** you do **not** have `SendMessage`. The `Agent` tool surfaces your **final assistant message** verbatim to the parent session when your turn completes. That final message *is* the report delivery — write the structured report there directly.
+
+The `/report` skill handles both cases: it detects which backend you're running in and routes correctly. Use it rather than hand-rolling a report. If you're Agent-backed and try to `SendMessage` directly, the call fails and the report is silently dropped — always go through `/report`.
