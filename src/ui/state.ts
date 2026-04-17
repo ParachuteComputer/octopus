@@ -172,6 +172,7 @@ export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
   // look for any untagged Claude Code pane — that's likely the team-lead.
   const now = Date.now();
   const tentacleNames = new Set(captures.filter((c) => c.name).map((c) => c.name));
+  const memberNames = new Set(config.members.map((m) => m.name));
   let primarySessionCapture = captures.find((c) => isPrimarySessionPane(c.content));
   if (!primarySessionCapture) {
     // Fallback: untagged Claude Code pane (not a tentacle)
@@ -179,12 +180,34 @@ export async function buildSnapshot(ctx?: InstanceContext): Promise<Snapshot> {
       (c) => !c.name && isClaudeCodePane(c.content),
     );
   }
+
+  // Hardening: if our config has tentacle members but the primary we just
+  // detected shares its tmux session with zero of them, the primary is most
+  // likely from a different team. This catches the cross-team bleed-through
+  // bug class even when the per-session filter isn't in play (e.g. tests,
+  // or a UI launched without OCTOPUS_TMUX_SESSION). Empty-config teams skip
+  // the check — we have nothing to cross-reference yet.
+  if (primarySessionCapture) {
+    const tentacleMembers = config.members.filter((m) => m.agentType !== "team-lead");
+    if (tentacleMembers.length > 0) {
+      const primarySession = primarySessionCapture.pane.session;
+      const hasConfigMemberInSession = captures.some(
+        (c) =>
+          c.pane.session === primarySession &&
+          c.name !== null &&
+          memberNames.has(c.name),
+      );
+      if (!hasConfigMemberInSession) {
+        primarySessionCapture = undefined;
+      }
+    }
+  }
+
   if (primarySessionCapture) {
     primaryCache = { paneId: primarySessionCapture.pane.paneId, at: now };
   } else if (primaryCache && now - primaryCache.at < PRIMARY_CACHE_TTL_MS) {
     primarySessionCapture = captures.find((c) => c.pane.paneId === primaryCache!.paneId);
   }
-  const memberNames = new Set(config.members.map((m) => m.name));
   const mentioned = primarySessionCapture
     ? extractMentions(primarySessionCapture.content, memberNames)
     : [];

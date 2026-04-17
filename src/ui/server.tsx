@@ -25,18 +25,35 @@ const TEAM_NAME = process.env.OCTOPUS_TEAM ?? "octopus";
 const TEAM_CONFIG_PATH = resolveTeamConfigPath(TEAM_NAME, process.env.OCTOPUS_TEAM_CONFIG);
 setConfigPath(TEAM_CONFIG_PATH);
 
+// When the UI is launched by `octopus launch`/`octopus ui`, the CLI exports
+// OCTOPUS_TMUX_SESSION so we can filter `tmux list-panes` to our team's
+// session. Without this filter, a primary-session-looking pane from another
+// team on the same host can be picked up as "our" team-lead — the dashboard
+// then shows orphans for the real team's tentacles and reports route to the
+// wrong inbox. The ?instance= query param overrides this per-request.
+const DEFAULT_TMUX_SESSION = process.env.OCTOPUS_TMUX_SESSION?.trim() || undefined;
+
 const PUBLIC_DIR = resolvePublicDir();
 
 const app = new Hono();
 
 function resolveInstanceCtx(c: { req: { query: (k: string) => string | undefined } }): InstanceContext | undefined {
   const instance = c.req.query("instance");
-  if (!instance) return undefined;
-  const pod = loadPod();
-  const entry = pod.octopi.find((o) => o.name === instance);
-  if (!entry) return undefined;
-  const configPath = resolveTeamConfigPath(entry.name, undefined, entry.scope);
-  return { configPath, session: entry.name };
+  if (instance) {
+    const pod = loadPod();
+    const entry = pod.octopi.find((o) => o.name === instance);
+    if (entry) {
+      const configPath = resolveTeamConfigPath(entry.name, undefined, entry.scope);
+      return { configPath, session: entry.name };
+    }
+    // Unknown instance — fall through to the default context rather than
+    // returning undefined, so we still filter to our own tmux session.
+  }
+  // Default context: filter to the session the UI was launched with, if any.
+  // buildSnapshot treats an undefined session as "scan every pane on the box",
+  // which is what causes the cross-team bleed-through this env var fixes.
+  if (DEFAULT_TMUX_SESSION) return { session: DEFAULT_TMUX_SESSION };
+  return undefined;
 }
 
 app.get("/health", (c) => c.json({ ok: true, at: Date.now() }));
