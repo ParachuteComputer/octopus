@@ -80,6 +80,8 @@ function helpEnv(): void {
 
   OCTOPUS_TEAM            default team name (default: octopus)
   OCTOPUS_TEAM_CONFIG     absolute path to config.json (skips lookup)
+  OCTOPUS_TMUX_SESSION    tmux session to filter pane scans to (set by
+                          \`octopus launch\`/\`octopus ui --tmux-session\`)
   OCTOPUS_UI_PORT         dashboard port (default: 6061)
   OCTOPUS_UI_HOST         dashboard bind address (default: 0.0.0.0)
   OCTOPUS_UI_POLL_MS      snapshot interval in ms (default: 2000)

@@ -72,6 +72,11 @@ function applyEnv(opts: UiOptions): void {
   process.env.OCTOPUS_UI_PORT = String(opts.port);
   process.env.OCTOPUS_UI_HOST = opts.host;
   if (opts.pollMs) process.env.OCTOPUS_UI_POLL_MS = opts.pollMs;
+  // Thread the tmux session name through to the server so it can filter
+  // pane listings to our team's session by default (no ?instance= required).
+  // Without this, the dashboard scans every tmux pane on the box and can
+  // match a primary-session-looking pane from a different team.
+  if (opts.tmuxSession) process.env.OCTOPUS_TMUX_SESSION = opts.tmuxSession;
 }
 
 function displayUrl(host: string, port: number): string {
