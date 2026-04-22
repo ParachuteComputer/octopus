@@ -51,6 +51,7 @@ Agent({
   subagent_type: "tentacle",
   name: <name>,
   team_name: "<team>",        // REQUIRED — from $OCTOPUS_TEAM
+  isolation: "worktree",      // recommended — see below
   prompt: "Working directory: <cwd>\n\n<the spawn prompt>"
 })
 ```
@@ -59,6 +60,21 @@ The Agent runtime creates the tmux pane, registers the tentacle in
 `~/.claude/teams/<team>/config.json` with a `tmuxPaneId`, and gives the new
 session the full team-messaging tool surface (`SendMessage`, inbox, etc.).
 The dashboard picks it up on its next 2s poll.
+
+### Why `isolation: "worktree"`
+
+Without worktree isolation, parallel tentacles spawned against the same repo
+share the team-lead's checkout — uncommitted edits from one tentacle collide
+with another's in the same working tree. The `worktree` isolation mode
+creates a temporary git worktree per tentacle so each gets an isolated copy.
+
+Pass `isolation: "worktree"` by default when:
+
+- The `<cwd>` is (or lives inside) a git repo.
+- The tentacle will edit files, not just read them.
+
+Skip it only for read-only audits, or when the tentacle's `<cwd>` is
+explicitly a pre-made worktree path that the team-lead has prepared.
 
 ## Acknowledge
 
