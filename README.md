@@ -208,6 +208,33 @@ app layer. The default bind host is `0.0.0.0`, which assumes you're on a
 Tailscale-only or firewalled interface. If you're not, pass `--host
 127.0.0.1`. Do not expose it on the open internet.
 
+## Known behaviors
+
+A few rough edges worth knowing about when running tentacles in parallel.
+
+### Worktree isolation for parallel tentacles
+
+Tentacles spawned against the same git repo share the team-lead's checkout
+unless `isolation: "worktree"` is passed. Parallel tentacles that edit files
+without it will trample each other's uncommitted changes. The `/spawn`
+template now recommends `isolation: "worktree"` by default; if you see
+tentacles clobbering each other, verify that flag is being passed.
+
+### Idle tentacles and `SendMessage`
+
+A tentacle that has gone idle (prompt returned, awaiting input) may not
+pick up a queued `SendMessage` immediately — its Claude Code CLI isn't
+actively polling. If a message seems stuck, nudge the pane via the
+dashboard (type a newline or send any key) to wake it and drain the inbox.
+
+### Pane exhaustion
+
+tmux can refuse `new-pane` with "no space for new pane" when a window is
+already heavily split. Octopus moves arm panes to background windows every
+2s (see `buildSnapshot`), but a burst of rapid-fire spawns can outrun that
+sweep. Workaround: wait a few seconds between spawns, or `/exit` any dead
+tentacles via the dashboard to reclaim room.
+
 ## Where octopus sits in the Parachute family
 
 Octopus is one piece of [Parachute](https://github.com/ParachuteComputer):
