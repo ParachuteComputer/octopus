@@ -1,8 +1,8 @@
 # Parachute-styled UI over tmux — RFC
 
-**Status:** Draft
+**Status:** Accepted design direction (Aaron, 2026-04-22); implementation post-launch
 **Author:** octopus tentacle (audit session, 2026-04-22)
-**Ask:** post-launch design direction; not scheduled
+**Ask:** post-launch design direction; not scheduled. Personal-tool scope — not a public release.
 
 ## Context
 
@@ -128,7 +128,7 @@ The smallest version that beats CCRC. Ship this first.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Browser — Preact + xterm.js                            │
+│  Browser — React + xterm.js                             │
 │                                                         │
 │  ┌───────────────┐  ┌──────────────────────────────┐   │
 │  │ Tentacle      │  │  xterm.js viewport           │   │
@@ -176,10 +176,13 @@ The smallest version that beats CCRC. Ship this first.
 
 - **New WebSocket upgrade handler** at `GET /api/tty/:name`. Looks up the
   tentacle's `livePaneId` from the snapshot, spawns `tmux attach-session -t
-  <session> -r` (read-only at first; see Open Questions) and pipes stdin
-  and stdout bidirectionally to the WebSocket. `node-pty` is the canonical
-  Node dependency for this; Bun has `Bun.spawn` with pty support that we'd
-  prefer if it's stable enough by launch+30 days.
+  <session>` and pipes stdin and stdout bidirectionally to the WebSocket.
+  Read-write from day one — no "take control" gate. `node-pty` is the
+  canonical Node dependency for this; Bun has `Bun.spawn` with pty support
+  that we'd prefer if it's stable enough by launch+30 days.
+- **Every pane is a first-class attach target**, including the team-lead
+  pane. Typing at the team-lead from a phone over Tailscale is the happy
+  path for delegating work away from the desk.
 - **WebSocket lifecycle** ties to tentacle lifecycle. When the tentacle
   dies, the tmux pane closes, the pty closes, the WebSocket closes with a
   clean close code that the frontend renders as "tentacle exited."
@@ -189,9 +192,10 @@ The smallest version that beats CCRC. Ship this first.
 
 ### Frontend
 
-- **Preact over React.** The existing UI is SSR'd Hono JSX; Preact + HTM
-  keeps bundle size low and matches the "Bun-native, no bundler" feel.
-  (React is fine too; decision is about bundler overhead.)
+- **React.** Aligns with the Notes (Lens) stack so Parachute design
+  primitives and muscle memory port cleanly. The SSR-first Hono JSX shell
+  stays as the `curl /` fallback; the client hydrates React into the
+  interactive regions only.
 - **xterm.js per attached pane.** One terminal instance, bound to one
   tentacle at a time. Switching tentacles tears down the WebSocket and
   opens a new one; xterm.js instances are cheap.
@@ -285,34 +289,34 @@ week of scope.
    versions. If it's stable, use it (one dep). If not, `node-pty` is the
    fallback (compiled C, but widely used).
 
-## Open questions for Aaron
+## Decisions (Aaron, 2026-04-22)
 
-1. **Preact vs React?** Bundler-free defaults push toward Preact + HTM.
-   React is fine if the team would rather be on the larger ecosystem.
-2. **Read-only pane mode by default?** Accidental keystrokes into a busy
-   tentacle are disruptive. "Click to unlock input" is a reasonable
-   safety; or we trust the user.
-3. **Should the team-lead pane also be attachable here?** Arguably yes —
-   typing to the team-lead from the browser is the happy path for
-   delegating work from a phone. But the team-lead pane is where
-   slash-commands originate; typing the wrong thing there has high
-   blast radius.
-4. **Where does this live in the repo?** Current `src/ui/` is the SSR
-   dashboard. Options: extend it (new routes, new components), or
-   `src/tui/` as a new sibling with its own entry. Leaning toward
-   extending `src/ui/` — one server, one frontend, two render modes.
-5. **What's the launch vehicle?** Ship behind a flag in `octopus ui
-   --beta-tui` first, or go straight to default once it's done? Probably
-   flagged until we've burned a week on it in real use.
+1. **React**, aligned with the Notes stack. Not Preact.
+2. **Read-write default.** Type straight into panes; no "take control"
+   gate. Trust the operator.
+3. **Every pane is attachable, including the team-lead pane.** High
+   blast radius accepted — this is a personal tool and the team-lead
+   pane is exactly where Aaron wants to type from a phone.
+4. **No beta flag.** Ship as the default once it's good enough for
+   Aaron's own use. This isn't going to a public audience in the near
+   term; the cost of a bad launch is just a bad day.
+5. **Repo layout** — execution judgment at implementation time. Current
+   lean is to extend `src/ui/` (one server, two render modes) rather
+   than carve out a `src/tui/` sibling, but not locked in.
 
 ## Dependencies and sequencing
 
-1. **Resolve #16 first** — SendMessage idle wake-up. Without it, the
-   chat overlay is a black hole.
-2. **Tackle #19 second** — de-emphasize the opinionated-init framing.
-   Lands cleaner with a repo positioned as "UI over tmux."
-3. **Then this.** The RFC becomes an implementation plan once #16 and
-   #19 are settled.
+Aaron's order, confirmed 2026-04-22:
+
+1. **#16 first** — SendMessage idle wake-up. Without it, the chat
+   overlay is a black hole.
+2. **#19 second** — de-emphasize the opinionated-init framing. Reshapes
+   what the repo and UI are *for* before the new frontend locks the
+   positioning in.
+3. **#20 / this RFC third.** Implement once #16 and #19 are settled.
+
+Pace: multi-week arc, post-launch, reviewer-gated PRs per repo
+convention. Not urgent.
 
 ## Appendix: why not just restyle today's SSR dashboard?
 
